@@ -8,7 +8,7 @@ import { parseJsonbField } from '../utils/dbHelpers';
 
 export interface WorkflowNode {
   id: string;
-  type: 'whatsappTrigger' | 'typebotTrigger' | 'condition' | 'delay' | 'end' | 'response' | 'spreadsheet';
+  type: 'whatsappTrigger' | 'typebotTrigger' | 'condition' | 'delay' | 'end' | 'response' | 'spreadsheet' | 'openai';
   position: { x: number; y: number };
   data: {
     instanceId?: string; // Para trigger
@@ -18,6 +18,9 @@ export interface WorkflowNode {
     spreadsheetName?: string; // Para spreadsheet
     isAuthenticated?: boolean; // Para spreadsheet
     sheetName?: string; // Para spreadsheet
+    apiKey?: string; // Para openai
+    model?: string; // Para openai
+    prompt?: string; // Para openai
     conditions?: Array<{ id: string; text: string; outputId: string }>; // Para condition
     delay?: number; // Para delay
     delayUnit?: 'seconds' | 'minutes' | 'hours'; // Para delay

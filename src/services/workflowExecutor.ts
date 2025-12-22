@@ -7,6 +7,7 @@ import { sendMessage } from '../utils/evolutionAPI';
 import Instance from '../models/Instance';
 import { getIO } from '../socket/socketServer';
 import { GoogleSheetsService } from './googleSheetsService';
+import { callOpenAI } from './openaiService';
 
 interface ExecutionContext {
   workflow: Workflow;
@@ -177,6 +178,10 @@ async function executeNode(
       await executeSpreadsheetNode(context, state, node);
       break;
 
+    case 'openai':
+      await executeOpenAINode(context, state, node);
+      break;
+
     case 'end':
       console.log(`🏁 Workflow finalizado no nó End`);
       state.hasReachedEnd = true;
@@ -290,7 +295,11 @@ async function executeResponseNode(
     }
   }
   const responseType = node.data?.responseType || 'text';
-  const content = node.data?.content || '';
+  // Se for tipo texto e não houver conteúdo configurado, usar messageText do contexto
+  // (que pode ter sido atualizado pelo nó OpenAI)
+  const content = responseType === 'text' && !node.data?.content 
+    ? context.messageText 
+    : (node.data?.content || '');
   const mediaUrl = node.data?.mediaUrl || '';
   const caption = node.data?.caption || '';
   const fileName = node.data?.fileName || '';
@@ -434,6 +443,51 @@ async function executeSpreadsheetNode(
 
   // Continuar para o próximo nó
   await executeNextNodes(context, state, node.id);
+}
+
+/**
+ * Executa nó OpenAI
+ */
+async function executeOpenAINode(
+  context: ExecutionContext,
+  state: ExecutionState,
+  node: WorkflowNode
+): Promise<void> {
+  const apiKey = node.data?.apiKey;
+  const model = node.data?.model || 'gpt-3.5-turbo';
+  const prompt = node.data?.prompt || 'Você é um assistente útil. Responda à mensagem do usuário de forma clara e objetiva.';
+
+  console.log(`🤖 Executando nó OpenAI: ${model}`);
+
+  if (!apiKey) {
+    console.log(`⚠️ API Key da OpenAI não configurada. Pulando processamento.`);
+    // Continuar o fluxo mesmo sem API key
+    await executeNextNodes(context, state, node.id);
+    return;
+  }
+
+  try {
+    // Processar mensagem com OpenAI
+    const aiResponse = await callOpenAI(
+      apiKey,
+      model,
+      prompt,
+      context.messageText
+    );
+
+    console.log(`✅ OpenAI processou mensagem: ${aiResponse.substring(0, 50)}...`);
+
+    // Atualizar messageText no contexto com a resposta da IA
+    // Isso permite que o próximo nó (resposta) use a resposta gerada
+    context.messageText = aiResponse;
+
+    // Continuar para o próximo nó
+    await executeNextNodes(context, state, node.id);
+  } catch (error) {
+    console.error(`❌ Erro ao processar com OpenAI:`, error);
+    // Continuar o fluxo mesmo se houver erro
+    await executeNextNodes(context, state, node.id);
+  }
 }
 
 /**
