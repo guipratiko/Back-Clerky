@@ -304,14 +304,30 @@ async function executeResponseNode(
     }
   }
   const responseType = node.data?.responseType || 'text';
+  
+  // Criar dados do contato para replaceVariables
+  const contactData: ContactData = {
+    phone: context.contactPhone,
+    name: context.typebotVariables?.Name || undefined, // Usar nome do Typebot se disponível
+  };
+
   // Se for tipo texto e não houver conteúdo configurado, usar messageText do contexto
   // (que pode ter sido atualizado pelo nó OpenAI)
-  const content = responseType === 'text' && !node.data?.content 
+  let content = responseType === 'text' && !node.data?.content 
     ? context.messageText 
     : (node.data?.content || '');
+  
+  // Substituir variáveis no conteúdo (incluindo variáveis do Typebot)
+  content = replaceVariables(content, contactData, 'Cliente', context.typebotVariables);
+  
   const mediaUrl = node.data?.mediaUrl || '';
-  const caption = node.data?.caption || '';
-  const fileName = node.data?.fileName || '';
+  let caption = node.data?.caption || '';
+  // Substituir variáveis na legenda também
+  caption = replaceVariables(caption, contactData, 'Cliente', context.typebotVariables);
+  
+  let fileName = node.data?.fileName || '';
+  // Substituir variáveis no nome do arquivo também
+  fileName = replaceVariables(fileName, contactData, 'Cliente', context.typebotVariables);
 
   console.log(`📤 Enviando resposta do tipo: ${responseType}`);
 
