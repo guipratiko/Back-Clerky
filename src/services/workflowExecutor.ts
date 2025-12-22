@@ -443,19 +443,27 @@ function extractDataFromContext(context: ExecutionContext): any {
   // Tentar parsear messageText como JSON (vindo do Typebot)
   try {
     const parsed = JSON.parse(context.messageText);
+    
+    // Se os dados vieram do Typebot, retornar diretamente
+    // O formato esperado: { submittedAt, Name, Telefone, Idade }
+    if (parsed.submittedAt || parsed.Name || parsed.Telefone || parsed.Idade) {
+      return parsed;
+    }
+    
+    // Se não for formato Typebot, retornar dados básicos
     return {
-      timestamp: new Date().toISOString(),
-      contactPhone: context.contactPhone,
-      instanceId: context.instanceId,
-      ...parsed, // Incluir todos os dados do Typebot
+      submittedAt: new Date().toISOString(),
+      Name: '',
+      Telefone: context.contactPhone,
+      Idade: '',
     };
   } catch {
     // Se não for JSON, retornar dados básicos
     return {
-      timestamp: new Date().toISOString(),
-      contactPhone: context.contactPhone,
-      instanceId: context.instanceId,
-      messageText: context.messageText,
+      submittedAt: new Date().toISOString(),
+      Name: '',
+      Telefone: context.contactPhone,
+      Idade: '',
     };
   }
 }

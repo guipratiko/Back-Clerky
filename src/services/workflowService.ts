@@ -4,6 +4,7 @@
  */
 
 import { pgPool } from '../config/databases';
+import { parseJsonbField } from '../utils/dbHelpers';
 
 export interface WorkflowNode {
   id: string;
@@ -77,39 +78,20 @@ export class WorkflowService {
    * Mapear row do banco para objeto Workflow
    */
   private static mapRowToWorkflow(row: any): Workflow {
-    // Parsear nodes e edges se forem strings JSON
-    let nodes = row.nodes || [];
-    let edges = row.edges || [];
-
-    // Se nodes é uma string, fazer parse
-    if (typeof nodes === 'string') {
-      try {
-        nodes = JSON.parse(nodes);
-      } catch (e) {
-        console.error('Erro ao fazer parse de nodes:', e);
-        nodes = [];
-      }
-    }
-
-    // Se edges é uma string, fazer parse
-    if (typeof edges === 'string') {
-      try {
-        edges = JSON.parse(edges);
-      } catch (e) {
-        console.error('Erro ao fazer parse de edges:', e);
-        edges = [];
-      }
-    }
+    // Parsear nodes e edges usando helper seguro
+    const nodes = parseJsonbField<WorkflowNode[]>(row.nodes, []);
+    const edges = parseJsonbField<WorkflowEdge[]>(row.edges, []);
 
     // Garantir que são arrays
+    const safeNodes = Array.isArray(nodes) ? nodes : [];
+    const safeEdges = Array.isArray(edges) ? edges : [];
+
     if (!Array.isArray(nodes)) {
       console.warn(`⚠️ Nodes não é um array para workflow ${row.id}:`, typeof nodes, nodes);
-      nodes = [];
     }
 
     if (!Array.isArray(edges)) {
       console.warn(`⚠️ Edges não é um array para workflow ${row.id}:`, typeof edges, edges);
-      edges = [];
     }
 
     return {
@@ -117,8 +99,8 @@ export class WorkflowService {
       userId: row.user_id,
       name: row.name,
       instanceId: row.instance_id,
-      nodes,
-      edges,
+      nodes: safeNodes,
+      edges: safeEdges,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

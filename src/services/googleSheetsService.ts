@@ -5,11 +5,7 @@
 
 import { google } from 'googleapis';
 import { pgPool } from '../config/databases';
-import axios from 'axios';
-import dotenv from 'dotenv';
-
-// Carregar variáveis de ambiente
-dotenv.config();
+import { GOOGLE_CONFIG } from '../config/constants';
 
 export interface GoogleTokens {
   access_token: string;
@@ -26,20 +22,17 @@ export interface SpreadsheetInfo {
 }
 
 export class GoogleSheetsService {
-  private static readonly CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-  private static readonly CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+  private static readonly CLIENT_ID = GOOGLE_CONFIG.CLIENT_ID;
+  private static readonly CLIENT_SECRET = GOOGLE_CONFIG.CLIENT_SECRET;
   
   private static getRedirectUri(): string {
     // Usar variável de ambiente ou construir a partir da API_URL
-    if (process.env.GOOGLE_REDIRECT_URI) {
-      return process.env.GOOGLE_REDIRECT_URI;
+    if (GOOGLE_CONFIG.REDIRECT_URI) {
+      return GOOGLE_CONFIG.REDIRECT_URI;
     }
-    // Tentar diferentes variáveis de ambiente para URL base
-    const API_URL = 
-      process.env.API_URL || 
-      process.env.BACKEND_URL ||
-      (process.env.NODE_ENV === 'production' ? 'https://back.clerky.com.br' : 'http://localhost:4331');
-    return `${API_URL}/api/google/auth/callback`;
+    // Construir URL de callback baseado na API_URL configurada
+    const apiUrl = GOOGLE_CONFIG.API_URL || 'http://localhost:4331';
+    return `${apiUrl}/api/google/auth/callback`;
   }
 
   /**
@@ -273,7 +266,7 @@ export class GoogleSheetsService {
         range: `${sheetName}!A1:Z1`,
         valueInputOption: 'RAW',
         requestBody: {
-          values: [['Timestamp', 'Telefone', 'Instância']],
+          values: [['Timestamp', 'Nome', 'Telefone', 'Idade']],
         },
       });
 
@@ -307,19 +300,21 @@ export class GoogleSheetsService {
       for (const row of data) {
         const rowValues: any[] = [];
         
-        // Se for objeto, converter para array ordenado
+        // Se for objeto, converter para array ordenado conforme cabeçalhos: Timestamp, Nome, Telefone, Idade
         if (typeof row === 'object' && row !== null) {
-          // Ordem: timestamp, telefone, instância, depois todos os outros campos
-          rowValues.push(row.timestamp || new Date().toISOString());
-          rowValues.push(row.contactPhone || row.phone || '');
-          rowValues.push(row.instanceId || '');
+          // Usar submittedAt como Timestamp (do Typebot), ou timestamp como fallback
+          const timestamp = row.submittedAt || row.timestamp || new Date().toISOString();
           
-          // Adicionar outros campos do objeto
-          Object.keys(row).forEach((key) => {
-            if (!['timestamp', 'contactPhone', 'phone', 'instanceId'].includes(key)) {
-              rowValues.push(row[key]);
-            }
-          });
+          // Extrair campos do Typebot (case-insensitive)
+          const name = row.Name || row.name || '';
+          const telefone = row.Telefone || row.telefone || row.contactPhone || row.phone || '';
+          const idade = row.Idade || row.idade || '';
+          
+          // Ordem: Timestamp, Nome, Telefone, Idade
+          rowValues.push(timestamp);
+          rowValues.push(name);
+          rowValues.push(telefone);
+          rowValues.push(idade);
         } else {
           // Se for array, usar diretamente
           rowValues.push(...(Array.isArray(row) ? row : [row]));

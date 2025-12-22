@@ -59,3 +59,11 @@ export const MEDIA_SERVICE_CONFIG = {
   TOKEN: process.env.MEDIA_SERVICE_TOKEN || 'Fg34Dsew5783gTy',
 };
 
+// Google OAuth Configuration
+export const GOOGLE_CONFIG = {
+  CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '',
+  CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || '',
+  REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || '',
+  API_URL: process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:4331',
+};
+
