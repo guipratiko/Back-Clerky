@@ -9,6 +9,8 @@ import { getIO } from '../socket/socketServer';
 import { GoogleSheetsService } from './googleSheetsService';
 import { callOpenAI } from './openaiService';
 import { OpenAIMemoryService } from './openaiMemoryService';
+import { replaceVariables, ContactData } from '../utils/variableReplacer';
+import { normalizePhone } from '../utils/numberNormalizer';
 
 interface ExecutionContext {
   workflow: Workflow;
@@ -16,6 +18,7 @@ interface ExecutionContext {
   instanceId: string;
   messageText: string;
   userId: string;
+  typebotVariables?: Record<string, any>; // Variáveis do Typebot (ex: { Name: "Marcos", Telefone: "+5562984049128" })
 }
 
 interface ExecutionState {
@@ -473,6 +476,23 @@ async function executeOpenAINode(
   }
 
   try {
+    // Substituir variáveis no prompt (incluindo variáveis do Typebot)
+    // Criar dados do contato para replaceVariables
+    const contactData: ContactData = {
+      phone: context.contactPhone,
+      name: undefined, // Será obtido se necessário
+    };
+
+    // Substituir variáveis no prompt
+    const processedPrompt = replaceVariables(
+      systemPrompt,
+      contactData,
+      'Cliente',
+      context.typebotVariables
+    );
+
+    console.log(`📝 Prompt processado com variáveis: ${processedPrompt.substring(0, 100)}...`);
+
     // Obter histórico de conversa do contato
     const conversationHistory = await OpenAIMemoryService.getMessages(
       context.workflow.id,
@@ -486,7 +506,7 @@ async function executeOpenAINode(
     const aiResponse = await callOpenAI(
       apiKey,
       model,
-      systemPrompt,
+      processedPrompt, // Usar prompt processado com variáveis
       context.messageText,
       conversationHistory
     );
@@ -753,16 +773,51 @@ export async function executeWorkflowFromTypebot(
     // Cada webhook pode trazer dados diferentes, então não verificamos se já entrou
     // Isso permite que o mesmo telefone envie formulários múltiplas vezes
 
+    // Extrair variáveis do body do Typebot
+    // O body pode vir como objeto direto ou dentro de um array
+    let typebotVariables: Record<string, any> = {};
+    
+    if (bodyData && typeof bodyData === 'object') {
+      // Se bodyData é um objeto, usar diretamente
+      if (Array.isArray(bodyData) && bodyData.length > 0 && bodyData[0].body) {
+        // Formato: [{ body: { Name: "...", Telefone: "..." } }]
+        typebotVariables = bodyData[0].body || {};
+      } else if (bodyData.body) {
+        // Formato: { body: { Name: "...", Telefone: "..." } }
+        typebotVariables = bodyData.body;
+      } else {
+        // Formato: { Name: "...", Telefone: "..." } (direto)
+        typebotVariables = bodyData;
+      }
+    }
+
+    console.log(`📋 Variáveis do Typebot extraídas:`, Object.keys(typebotVariables));
+
+    // Se o Typebot tiver um campo "Telefone" no body, usar ele ao invés do contactPhone padrão
+    let finalContactPhone = contactPhone;
+    if (typebotVariables && typebotVariables.Telefone) {
+      const typebotPhone = typebotVariables.Telefone;
+      // Normalizar o telefone do Typebot
+      const normalizedTypebotPhone = normalizePhone(String(typebotPhone), '55');
+      if (normalizedTypebotPhone) {
+        finalContactPhone = normalizedTypebotPhone;
+        console.log(`📱 Usando telefone do Typebot: ${finalContactPhone} (original: ${typebotPhone})`);
+      } else {
+        console.log(`⚠️ Telefone do Typebot inválido: ${typebotPhone}. Usando telefone padrão: ${contactPhone}`);
+      }
+    }
+
     // Criar contexto de execução
     // Para Typebot, usamos os dados do body como mensagem
     const messageText = JSON.stringify(bodyData);
 
     const context: ExecutionContext = {
       workflow,
-      contactPhone,
+      contactPhone: finalContactPhone, // Usar telefone do Typebot se disponível
       instanceId: workflow.instanceId,
       messageText,
       userId,
+      typebotVariables, // Adicionar variáveis do Typebot ao contexto
     };
 
     // Criar estado de execução

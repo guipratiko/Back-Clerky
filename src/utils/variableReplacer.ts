@@ -44,16 +44,18 @@ const getLastName = (fullName?: string): string => {
 };
 
 /**
- * Substitui variáveis em um texto usando dados do contato
+ * Substitui variáveis em um texto usando dados do contato e variáveis do Typebot
  * @param text - Texto com variáveis (ex: "Olá $firstName, como vai?")
  * @param contact - Dados do contato
  * @param defaultName - Nome padrão caso não tenha nome
+ * @param typebotVariables - Variáveis do Typebot (ex: { Name: "Marcos", Telefone: "+5562984049128" })
  * @returns Texto com variáveis substituídas
  */
 export const replaceVariables = (
   text: string,
   contact: ContactData,
-  defaultName: string = 'Cliente'
+  defaultName: string = 'Cliente',
+  typebotVariables?: Record<string, any>
 ): string => {
   if (!text || typeof text !== 'string') {
     return text;
@@ -62,14 +64,14 @@ export const replaceVariables = (
   // Determinar nome a ser usado (prioridade: contact.name > defaultName)
   const contactName = contact.name || defaultName;
 
-  // Calcular valores das variáveis
+  // Calcular valores das variáveis do contato
   const firstName = getFirstName(contactName);
   const lastName = getLastName(contactName);
   const fullName = contactName;
   const formattedPhone = contact.formattedPhone || formatPhoneForDisplay(contact.phone);
   const originalPhone = contact.phone;
 
-  // Mapa de variáveis para valores
+  // Mapa de variáveis para valores (variáveis padrão do contato)
   const variables: Record<string, string> = {
     $firstName: firstName,
     $lastName: lastName,
@@ -77,6 +79,16 @@ export const replaceVariables = (
     $formattedPhone: formattedPhone,
     $originalPhone: originalPhone,
   };
+
+  // Adicionar variáveis do Typebot (com prefixo $)
+  if (typebotVariables && typeof typebotVariables === 'object') {
+    for (const [key, value] of Object.entries(typebotVariables)) {
+      // Converter chave para variável com $ (ex: "Name" -> "$Name")
+      const variableKey = `$${key}`;
+      // Converter valor para string
+      variables[variableKey] = value != null ? String(value) : '';
+    }
+  }
 
   // Substituir todas as variáveis
   let result = text;
