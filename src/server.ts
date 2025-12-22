@@ -48,6 +48,25 @@ console.log('✅ Rotas de webhook registradas: /webhook/api/:instanceName');
 app.use('/api/v1/webhook', webhookAPIRoutes);
 console.log('✅ Rotas de API externa registradas: /api/v1/webhook/*');
 
+// Rota raiz
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Clerky API está funcionando',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      instances: '/api/instances',
+      crm: '/api/crm',
+      dispatches: '/api/dispatches',
+      workflows: '/api/workflows',
+      webhook: '/webhook/api/:instanceName',
+    },
+  });
+});
+
 // Rotas da API
 app.use('/api', routes);
 
