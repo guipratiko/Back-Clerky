@@ -34,7 +34,11 @@ export class GoogleSheetsService {
     if (process.env.GOOGLE_REDIRECT_URI) {
       return process.env.GOOGLE_REDIRECT_URI;
     }
-    const API_URL = process.env.API_URL || 'http://localhost:4331';
+    // Tentar diferentes variáveis de ambiente para URL base
+    const API_URL = 
+      process.env.API_URL || 
+      process.env.BACKEND_URL ||
+      (process.env.NODE_ENV === 'production' ? 'https://back.clerky.com.br' : 'http://localhost:4331');
     return `${API_URL}/api/google/auth/callback`;
   }
 

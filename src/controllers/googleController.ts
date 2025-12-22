@@ -23,13 +23,25 @@ export const googleAuth = async (
       return next(createValidationError('Usuário não autenticado'));
     }
 
+    console.log('🔐 Iniciando autenticação Google:', { userId, nodeId, workflowId });
+
     const authUrl = await GoogleSheetsService.getAuthUrl(userId, nodeId as string, workflowId as string);
+
+    console.log('✅ URL de autenticação gerada com sucesso');
 
     res.status(200).json({
       status: 'success',
       authUrl,
     });
   } catch (error: unknown) {
+    console.error('❌ Erro ao obter URL de autenticação:', error);
+    // Retornar mensagem mais específica
+    if (error instanceof Error) {
+      if (error.message.includes('GOOGLE_CLIENT_ID') || error.message.includes('GOOGLE_CLIENT_SECRET')) {
+        return next(handleControllerError(error, 'Erro ao obter URL de autenticação: Configuração do Google OAuth não encontrada. Verifique as variáveis de ambiente GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.'));
+      }
+      return next(handleControllerError(error, `Erro ao obter URL de autenticação: ${error.message}`));
+    }
     return next(handleControllerError(error, 'Erro ao iniciar autenticação Google'));
   }
 };
