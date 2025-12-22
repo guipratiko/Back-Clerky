@@ -333,7 +333,10 @@ export class DispatchService {
    */
   private static mapRowToDispatch(row: any): Dispatch {
     // Garantir valores padrão para campos JSONB usando helper
-    const settings = parseJsonbField(row.settings, {});
+    const settings = parseJsonbField<DispatchSettings>(row.settings, {
+      speed: 'normal',
+      autoDelete: false,
+    });
     const schedule = parseJsonbField<DispatchSchedule | null>(row.schedule, null);
     const contactsData = parseJsonbField<any[]>(row.contacts_data, []);
     const stats = parseJsonbField<DispatchStats>(

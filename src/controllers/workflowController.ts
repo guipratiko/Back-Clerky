@@ -343,19 +343,21 @@ export const receiveTypebotWebhook = async (
         // Se o primeiro item é um objeto mas não tem "body", usar o próprio item
         bodyData = firstItem;
       } else {
-        return res.status(400).json({
+        res.status(400).json({
           status: 'error',
           message: 'Payload inválido. Array deve conter objetos válidos.',
         });
+        return;
       }
     } else if (typeof payload === 'object' && payload !== null) {
       // Formato 2: Objeto direto
       bodyData = payload;
     } else {
-      return res.status(400).json({
+      res.status(400).json({
         status: 'error',
         message: 'Payload inválido. Esperado um objeto ou array com objetos.',
       });
+      return;
     }
 
     console.log(`📋 Dados extraídos:`, JSON.stringify(bodyData, null, 2));
@@ -410,10 +412,11 @@ export const receiveTypebotWebhook = async (
     if (!targetWorkflow) {
       console.log(`⚠️ Nenhum workflow ativo encontrado com o nó typebotTrigger ${nodeId}`);
       console.log(`💡 Dica: Verifique se o workflow está salvo e ativo (isActive = true)`);
-      return res.status(404).json({
+      res.status(404).json({
         status: 'error',
         message: 'Workflow não encontrado ou inativo para este nó. Verifique se o workflow foi salvo e está ativo.',
       });
+      return;
     }
 
     console.log(`✅ Workflow encontrado: ${targetWorkflow.name} (${targetWorkflow.id})`);
@@ -423,10 +426,11 @@ export const receiveTypebotWebhook = async (
     
     if (!phone) {
       console.log(`⚠️ Telefone não encontrado no body`);
-      return res.status(400).json({
+      res.status(400).json({
         status: 'error',
         message: 'Telefone não encontrado no payload. O campo deve conter "Telefone", "telefone", "phone" ou "Phone".',
       });
+      return;
     }
 
     // Normalizar telefone (remover caracteres especiais e garantir formato correto)

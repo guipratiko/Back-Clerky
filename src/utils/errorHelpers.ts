@@ -65,7 +65,7 @@ export const handleControllerError = (error: unknown, defaultMessage: string = '
  */
 export const handleMongooseValidationError = (error: unknown): AppError | null => {
   if (error && typeof error === 'object' && 'name' in error && error.name === 'ValidationError') {
-    const mongooseError = error as { errors: Record<string, { message: string }> };
+    const mongooseError = error as unknown as { errors: Record<string, { message: string }> };
     const errorMessage = Object.values(mongooseError.errors)
       .map((err) => err.message)
       .join(', ');

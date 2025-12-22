@@ -158,10 +158,11 @@ InstanceSchema.pre('save', async function (next) {
   if (!this.token || this.token === '') {
     let newToken = generateInstanceToken();
     // Garantir que o token seja único
-    let existingInstance = await this.constructor.findOne({ token: newToken });
+    const InstanceModel = this.constructor as typeof Instance;
+    let existingInstance = await InstanceModel.findOne({ token: newToken });
     while (existingInstance) {
       newToken = generateInstanceToken();
-      existingInstance = await this.constructor.findOne({ token: newToken });
+      existingInstance = await InstanceModel.findOne({ token: newToken });
     }
     this.token = newToken;
   }

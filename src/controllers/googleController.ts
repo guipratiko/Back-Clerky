@@ -47,7 +47,7 @@ export const googleAuthCallback = async (
     const { code, state } = req.query;
 
     if (!code) {
-      return res.status(400).send(`
+      res.status(400).send(`
         <html>
           <body>
             <h1>Erro na autenticação</h1>

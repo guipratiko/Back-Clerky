@@ -110,7 +110,8 @@ export const createDispatch = async (
 
       // Buscar contatos das colunas
       for (const columnId of columnIds) {
-        const contacts = await ContactService.getContactsByUserId(userId, instanceId, columnId);
+        const allContacts = await ContactService.getContactsByUserId(userId, instanceId);
+        const contacts = allContacts.filter((c) => c.columnId === columnId);
         processedContacts.push(
           ...contacts.map((c) => ({
             phone: c.phone,
@@ -155,7 +156,7 @@ export const createDispatch = async (
         phone: c.phone,
         name: c.name,
         validated: true, // Aceitar todos se validação não estiver disponível
-        validationResult: null,
+        validationResult: undefined,
       }));
     }
 
@@ -172,7 +173,7 @@ export const createDispatch = async (
         phone: c.phone,
         name: c.name,
         validated: true,
-        validationResult: null,
+        validationResult: undefined,
       }));
       // Usar os contatos manuais
       validContacts = manualValidContacts;

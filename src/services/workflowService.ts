@@ -287,7 +287,7 @@ export class WorkflowService {
     `;
 
     const result = await pgPool.query(query, [id, userId]);
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   /**

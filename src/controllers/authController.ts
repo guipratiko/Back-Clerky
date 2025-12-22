@@ -17,9 +17,11 @@ import {
 
 // Gerar token JWT
 const generateToken = (userId: string): string => {
-  return jwt.sign({ id: userId }, JWT_CONFIG.SECRET, {
-    expiresIn: JWT_CONFIG.EXPIRE,
-  });
+  return jwt.sign(
+    { id: userId },
+    JWT_CONFIG.SECRET,
+    { expiresIn: JWT_CONFIG.EXPIRE } as jwt.SignOptions
+  );
 };
 
 // Login
@@ -190,12 +192,12 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
 
     if (companyName !== undefined) {
       // Normalizar nome da empresa
-      user.companyName = companyName?.trim() ? normalizeName(companyName.trim()) : null;
+      user.companyName = companyName?.trim() ? normalizeName(companyName.trim()) : undefined;
     }
 
     if (phone !== undefined) {
       // Normalizar telefone: apenas números
-      user.phone = phone?.trim() ? normalizePhone(phone.trim()) : null;
+      user.phone = phone?.trim() ? normalizePhone(phone.trim()) : undefined;
     }
 
     await user.save();

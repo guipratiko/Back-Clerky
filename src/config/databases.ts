@@ -169,6 +169,5 @@ export const closeAllDatabases = async (): Promise<void> => {
   }
 };
 
-// Exportar instâncias para uso direto
-export { mongoose, pgPool, redisClient };
+// Instâncias já exportadas acima, não precisam ser re-exportadas
 

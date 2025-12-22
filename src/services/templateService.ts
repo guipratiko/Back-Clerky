@@ -166,8 +166,6 @@ export class TemplateService {
       
       throw error;
     }
-
-    return this.mapRowToTemplate(result.rows[0]);
   }
 
   /**

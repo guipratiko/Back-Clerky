@@ -29,7 +29,7 @@ interface UpdateSettingsBody {
 }
 
 // Tipo para instância do MongoDB (lean) - usando Record para flexibilidade
-type InstanceLean = Record<string, any> & {
+export type InstanceLean = Record<string, any> & {
   _id: mongoose.Types.ObjectId;
   name?: string;
   instanceName?: string;
@@ -176,6 +176,9 @@ export const createInstance = async (
     // Emitir evento via WebSocket para atualizar status em tempo real
     try {
       const io = getIO();
+      if (!userId) {
+        throw new Error('Usuário não encontrado');
+      }
       const userIdStr = userId.toString();
       const instanceIdStr = instance._id.toString();
       console.log(`📤 [Controller] Emitindo evento para usuário ${userIdStr}: instância ${instanceIdStr} -> status ${status}`);
