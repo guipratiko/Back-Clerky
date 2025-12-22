@@ -3,6 +3,7 @@
  */
 
 import axios from 'axios';
+import { ConversationMessage } from './openaiMemoryService';
 
 export interface OpenAIResponse {
   content: string;
@@ -15,32 +16,44 @@ export interface OpenAIResponse {
 }
 
 /**
- * Chamar API da OpenAI para processar mensagem
+ * Chamar API da OpenAI para processar mensagem com memória
  */
 export async function callOpenAI(
   apiKey: string,
   model: string,
-  prompt: string,
-  message: string
+  systemPrompt: string,
+  message: string,
+  conversationHistory: ConversationMessage[] = []
 ): Promise<string> {
   try {
-    // Substituir {message} no prompt pela mensagem recebida
-    const finalPrompt = prompt.replace(/{message}/g, message);
+    // Construir array de mensagens com histórico
+    const messages: Array<{ role: string; content: string }> = [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+    ];
+
+    // Adicionar histórico de conversa (últimas 15 mensagens para não exceder limites)
+    const recentHistory = conversationHistory.slice(-15);
+    recentHistory.forEach((msg) => {
+      messages.push({
+        role: msg.role,
+        content: msg.content,
+      });
+    });
+
+    // Adicionar mensagem atual
+    messages.push({
+      role: 'user',
+      content: message,
+    });
 
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
         model,
-        messages: [
-          {
-            role: 'system',
-            content: finalPrompt,
-          },
-          {
-            role: 'user',
-            content: message,
-          },
-        ],
+        messages,
         temperature: 0.7,
         max_tokens: 1000,
       },
@@ -58,7 +71,7 @@ export async function callOpenAI(
       throw new Error('Resposta da OpenAI não contém conteúdo');
     }
 
-    console.log(`✅ OpenAI respondeu com sucesso (modelo: ${model})`);
+    console.log(`✅ OpenAI respondeu com sucesso (modelo: ${model}, histórico: ${recentHistory.length} mensagens)`);
     return content;
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {

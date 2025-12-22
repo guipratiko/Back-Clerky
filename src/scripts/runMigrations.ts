@@ -86,6 +86,7 @@ async function runAllMigrations(): Promise<void> {
       '008_fix_templates_type_constraint.sql',
   '009_create_workflows_tables.sql',
   '010_create_google_tokens_table.sql',
+  '011_create_openai_memory_table.sql',
 ];
     
     for (const migration of migrations) {

@@ -8,6 +8,7 @@ import Instance from '../models/Instance';
 import { getIO } from '../socket/socketServer';
 import { GoogleSheetsService } from './googleSheetsService';
 import { callOpenAI } from './openaiService';
+import { OpenAIMemoryService } from './openaiMemoryService';
 
 interface ExecutionContext {
   workflow: Workflow;
@@ -91,12 +92,15 @@ export async function executeWorkflow(
       }
     });
 
+    // Verificar se o workflow contém nó OpenAI
+    const hasOpenAINode = workflow.nodes.some((node) => node.type === 'openai');
+
     // Executar workflow começando pelo gatilho
     await executeNode(context, state, triggerNode.id);
 
     // Adicionar contato à lista APENAS se o workflow chegou ao final
-    // (pelo menos um caminho completou até o nó End ou finalizou uma ramificação)
-    if (state.hasReachedEnd) {
+    // Se o workflow tiver nó OpenAI, não adicionar à lista (permite múltiplas execuções)
+    if (state.hasReachedEnd && !hasOpenAINode) {
       await WorkflowService.addWorkflowContact(workflow.id, contactPhone, instanceId);
       console.log(`✅ Contato ${contactPhone} adicionado ao workflow ${workflow.id} (após conclusão completa)`);
       
@@ -112,6 +116,8 @@ export async function executeWorkflow(
         // Não falhar se o WebSocket não estiver disponível
         console.error('Erro ao emitir evento de contato do workflow:', error);
       }
+    } else if (hasOpenAINode) {
+      console.log(`🤖 Workflow com OpenAI: Contato ${contactPhone} não adicionado à lista (permite múltiplas interações)`);
     } else {
       console.log(`⏭️ Contato ${contactPhone} não adicionado ao workflow (fluxo não completou)`);
     }
@@ -455,7 +461,7 @@ async function executeOpenAINode(
 ): Promise<void> {
   const apiKey = node.data?.apiKey;
   const model = node.data?.model || 'gpt-3.5-turbo';
-  const prompt = node.data?.prompt || 'Você é um assistente útil. Responda à mensagem do usuário de forma clara e objetiva.';
+  const systemPrompt = node.data?.prompt || 'Você é um assistente útil. Responda à mensagem do usuário de forma clara e objetiva.';
 
   console.log(`🤖 Executando nó OpenAI: ${model}`);
 
@@ -467,15 +473,43 @@ async function executeOpenAINode(
   }
 
   try {
-    // Processar mensagem com OpenAI
+    // Obter histórico de conversa do contato
+    const conversationHistory = await OpenAIMemoryService.getMessages(
+      context.workflow.id,
+      context.contactPhone,
+      context.instanceId
+    );
+
+    console.log(`💭 Histórico de conversa: ${conversationHistory.length} mensagens anteriores`);
+
+    // Processar mensagem com OpenAI (incluindo histórico)
     const aiResponse = await callOpenAI(
       apiKey,
       model,
-      prompt,
-      context.messageText
+      systemPrompt,
+      context.messageText,
+      conversationHistory
     );
 
     console.log(`✅ OpenAI processou mensagem: ${aiResponse.substring(0, 50)}...`);
+
+    // Salvar mensagem do usuário na memória
+    await OpenAIMemoryService.addMessage(
+      context.workflow.id,
+      context.contactPhone,
+      context.instanceId,
+      'user',
+      context.messageText
+    );
+
+    // Salvar resposta da IA na memória
+    await OpenAIMemoryService.addMessage(
+      context.workflow.id,
+      context.contactPhone,
+      context.instanceId,
+      'assistant',
+      aiResponse
+    );
 
     // Atualizar messageText no contexto com a resposta da IA
     // Isso permite que o próximo nó (resposta) use a resposta gerada
