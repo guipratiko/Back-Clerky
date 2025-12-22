@@ -9,6 +9,7 @@
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "ts-node-dev --transpile-only src/scripts/runMigrations.ts",
+    "migrate:openai": "ts-node-dev --transpile-only src/scripts/runOpenAIMigration.ts",
     "check-constraint": "ts-node-dev --transpile-only src/scripts/checkTemplatesConstraint.ts",
     "fix-constraint": "ts-node-dev --transpile-only src/scripts/fixTemplatesConstraint.ts",
     "drop-tables": "ts-node-dev --transpile-only src/scripts/dropCrmTables.ts",
