@@ -83,9 +83,12 @@ export const uploadMediaToService = async (
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('❌ Erro ao fazer upload para MidiaService:', errorMessage);
-    if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error('Data:', error.response.data);
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as { response?: { status?: number; data?: any } };
+      if (axiosError.response) {
+        console.error('Status:', axiosError.response.status);
+        console.error('Data:', axiosError.response.data);
+      }
     }
     return null;
   }
@@ -148,8 +151,11 @@ export const uploadFileToService = async (
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('❌ Erro ao fazer upload de arquivo para MidiaService:', errorMessage);
     if (error && typeof error === 'object' && 'response' in error) {
-      console.error('Status:', error.response.status);
-      console.error('Data:', error.response.data);
+      const axiosError = error as { response?: { status?: number; data?: any } };
+      if (axiosError.response) {
+        console.error('Status:', axiosError.response.status);
+        console.error('Data:', axiosError.response.data);
+      }
     }
     return null;
   }

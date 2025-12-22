@@ -80,10 +80,11 @@ export class GoogleSheetsService {
    * Processar callback do OAuth e salvar tokens
    */
   static async handleAuthCallback(code: string, userId: string): Promise<GoogleTokens> {
+    const redirectUri = this.getRedirectUri();
     const oauth2Client = new google.auth.OAuth2(
       this.CLIENT_ID,
       this.CLIENT_SECRET,
-      this.getRedirectUri()
+      redirectUri
     );
 
     try {
@@ -175,10 +176,11 @@ export class GoogleSheetsService {
       throw new Error('Usuário não autenticado com Google');
     }
 
+    const redirectUri = this.getRedirectUri();
     const oauth2Client = new google.auth.OAuth2(
       this.CLIENT_ID,
       this.CLIENT_SECRET,
-      this.REDIRECT_URI
+      redirectUri
     );
 
     oauth2Client.setCredentials({
@@ -195,16 +197,20 @@ export class GoogleSheetsService {
         const { credentials } = await oauth2Client.refreshAccessToken();
         
         // Atualizar tokens
-        tokens = {
+        const updatedTokens: GoogleTokens = {
           access_token: credentials.access_token || tokens.access_token,
           refresh_token: credentials.refresh_token || tokens.refresh_token,
           expiry_date: credentials.expiry_date || Date.now() + 3600000,
-          scope: credentials.scope,
-          token_type: credentials.token_type,
+          scope: credentials.scope || undefined,
+          token_type: credentials.token_type || 'Bearer',
         };
 
-        await this.saveTokens(userId, tokens);
-        oauth2Client.setCredentials(tokens);
+        await this.saveTokens(userId, updatedTokens);
+        oauth2Client.setCredentials({
+          access_token: updatedTokens.access_token,
+          refresh_token: updatedTokens.refresh_token,
+          expiry_date: updatedTokens.expiry_date,
+        });
       } catch (error: any) {
         console.error('Erro ao renovar token:', error);
         throw new Error('Erro ao renovar token de acesso. Por favor, autentique novamente.');

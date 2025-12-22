@@ -5,7 +5,7 @@
 
 import { NextFunction } from 'express';
 import { getIO } from '../socket/socketServer';
-import Instance from '../models/Instance';
+import Instance, { IInstance } from '../models/Instance';
 import { ContactService } from '../services/contactService';
 import { CRMColumnService } from '../services/crmColumnService';
 import { normalizePhone } from './formatters';
@@ -42,7 +42,7 @@ export const extractMessageId = (evolutionResponse: any): string => {
  */
 export const getAndValidateInstance = async (
   instanceId: string
-): Promise<Instance> => {
+): Promise<IInstance> => {
   const instance = await Instance.findById(instanceId);
   if (!instance) {
     throw new Error('Instância não encontrada');
