@@ -1,0 +1,56 @@
+{
+  "name": "clerky-backend",
+  "version": "1.0.0",
+  "description": "Backend API para Clerky - Hub de conexão com redes sociais",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "migrate": "ts-node-dev --transpile-only src/scripts/runMigrations.ts",
+    "check-constraint": "ts-node-dev --transpile-only src/scripts/checkTemplatesConstraint.ts",
+    "fix-constraint": "ts-node-dev --transpile-only src/scripts/fixTemplatesConstraint.ts",
+    "drop-tables": "ts-node-dev --transpile-only src/scripts/dropCrmTables.ts",
+    "drop-all": "ts-node-dev --transpile-only src/scripts/dropAllTables.ts",
+    "kill": "bash scripts/kill-server.sh"
+  },
+  "keywords": [
+    "clerky",
+    "whatsapp",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/bull": "^3.15.9",
+    "@types/form-data": "^2.2.1",
+    "@types/multer": "^2.0.0",
+    "axios": "^1.13.2",
+    "bcryptjs": "^2.4.3",
+    "bull": "^4.16.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "follow-redirects": "^1.15.11",
+    "form-data": "^4.0.5",
+    "googleapis": "^169.0.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "multer": "^2.0.2",
+    "pg": "^8.11.3",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/follow-redirects": "^1.14.4",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.5",
+    "@types/pg": "^8.10.9",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3"
+  }
+}
