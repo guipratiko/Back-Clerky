@@ -661,17 +661,9 @@ export async function executeWorkflowFromTypebot(
       return;
     }
 
-    // Verificar se o contato já entrou no workflow
-    const hasEntered = await WorkflowService.hasContactEntered(
-      workflow.id,
-      contactPhone,
-      workflow.instanceId // Usar instanceId do workflow
-    );
-
-    if (hasEntered) {
-      console.log(`⏭️ Contato ${contactPhone} já entrou neste workflow. Pulando execução.`);
-      return;
-    }
+    // Para workflows Typebot, permitir múltiplas execuções do mesmo contato
+    // Cada webhook pode trazer dados diferentes, então não verificamos se já entrou
+    // Isso permite que o mesmo telefone envie formulários múltiplas vezes
 
     // Criar contexto de execução
     // Para Typebot, usamos os dados do body como mensagem
@@ -695,10 +687,16 @@ export async function executeWorkflowFromTypebot(
     // Executar workflow começando pelo gatilho
     await executeNode(context, state, triggerNode.id);
 
-    // Adicionar contato à lista APENAS se o workflow chegou ao final
+    // Para workflows Typebot, adicionar contato à lista APENAS se o workflow chegou ao final
+    // Usar ON CONFLICT DO NOTHING para não gerar erro se o contato já estiver na lista
     if (state.hasReachedEnd) {
-      await WorkflowService.addWorkflowContact(workflow.id, contactPhone, workflow.instanceId);
-      console.log(`✅ Contato ${contactPhone} adicionado ao workflow ${workflow.id} (após conclusão completa)`);
+      try {
+        await WorkflowService.addWorkflowContact(workflow.id, contactPhone, workflow.instanceId);
+        console.log(`✅ Contato ${contactPhone} adicionado ao workflow ${workflow.id} (após conclusão completa)`);
+      } catch (error) {
+        // Se já estiver na lista, apenas logar (não é um erro crítico)
+        console.log(`ℹ️ Contato ${contactPhone} já estava na lista do workflow ${workflow.id}`);
+      }
       
       // Emitir evento WebSocket para atualizar frontend em tempo real
       try {
