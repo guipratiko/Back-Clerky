@@ -304,9 +304,12 @@ export const transcriptionCallback = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('📥 Callback de transcrição recebido:', JSON.stringify(req.body, null, 2));
+    
     const { userId, contactPhone, instanceId, messageId, transcription } = req.body;
 
     if (!transcription) {
+      console.warn('⚠️ Callback sem transcrição:', req.body);
       res.status(400).json({
         status: 'error',
         message: 'Transcrição não fornecida',
@@ -314,7 +317,17 @@ export const transcriptionCallback = async (
       return;
     }
 
-    console.log(`📝 Transcrição recebida para mensagem ${messageId}: ${transcription.substring(0, 50)}...`);
+    if (!userId || !contactPhone || !instanceId) {
+      console.warn('⚠️ Callback sem dados obrigatórios:', { userId, contactPhone, instanceId });
+      res.status(400).json({
+        status: 'error',
+        message: 'Dados obrigatórios faltando (userId, contactPhone, instanceId)',
+      });
+      return;
+    }
+
+    console.log(`📝 Transcrição recebida para mensagem ${messageId || 'SEM_ID'}: ${transcription.substring(0, 50)}...`);
+    console.log(`📋 Dados: userId=${userId}, instanceId=${instanceId}, contactPhone=${contactPhone}`);
 
     // Atualizar mensagem no buffer com a transcrição
     // A transcrição será processada quando o buffer for processado após o tempo de espera
@@ -323,7 +336,7 @@ export const transcriptionCallback = async (
       userId,
       instanceId,
       contactPhone,
-      messageId,
+      messageId || '', // Se não tiver messageId, tentar encontrar por timestamp
       transcription
     );
 

@@ -160,17 +160,47 @@ export async function updateMessageInBuffer(
 
   if (!buffer) {
     console.warn(`⚠️ Buffer não encontrado para atualizar transcrição: ${bufferKey}`);
+    console.warn(`📋 Buffers ativos: ${Array.from(messageBuffers.keys()).join(', ')}`);
+    
+    // Se o buffer não existe, pode ter sido processado. Vamos salvar a transcrição na memória do Redis
+    // para que possa ser usada na próxima interação
+    try {
+      const memory = await getContactMemory(userId, instanceId, contactPhone);
+      // Adicionar transcrição como mensagem do usuário na memória
+      memory.history.push({
+        role: 'user',
+        content: transcription,
+        timestamp: new Date().toISOString(),
+      });
+      await saveContactMemory(userId, instanceId, contactPhone, memory);
+      console.log(`✅ Transcrição salva diretamente na memória do contato (buffer já processado)`);
+    } catch (error) {
+      console.error(`❌ Erro ao salvar transcrição na memória:`, error);
+    }
     return;
   }
 
-  // Encontrar mensagem no buffer e atualizar com transcrição
-  const message = buffer.messages.find((msg) => msg.messageId === messageId);
+  // Se não tiver messageId, tentar encontrar a mensagem de áudio mais recente sem transcrição
+  let message;
+  if (messageId) {
+    message = buffer.messages.find((msg) => msg.messageId === messageId);
+  } else {
+    // Encontrar a última mensagem de áudio sem transcrição
+    message = buffer.messages
+      .filter((msg) => msg.messageType === 'audioMessage' && !msg.transcription)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+    if (message) {
+      console.log(`🔍 Mensagem encontrada sem messageId, usando a mais recente: ${message.messageId}`);
+    }
+  }
+
   if (message) {
     message.transcription = transcription;
     message.content = transcription; // Usar transcrição como conteúdo
-    console.log(`✅ Transcrição atualizada no buffer para mensagem ${messageId}`);
+    console.log(`✅ Transcrição atualizada no buffer para mensagem ${message.messageId || messageId}`);
   } else {
-    console.warn(`⚠️ Mensagem ${messageId} não encontrada no buffer para atualizar transcrição`);
+    console.warn(`⚠️ Mensagem ${messageId || 'SEM_ID'} não encontrada no buffer para atualizar transcrição`);
+    console.warn(`📋 Mensagens no buffer: ${buffer.messages.map(m => `${m.messageId} (${m.messageType})`).join(', ')}`);
   }
 }
 
@@ -188,18 +218,26 @@ export async function transcribeAudio(
     console.log(`🎤 Enviando áudio para transcrição: ${messageId}`);
     console.log(`📡 URL: ${TRANSCRIPTION_CONFIG.WEBHOOK_URL}`);
     console.log(`📞 Callback: ${TRANSCRIPTION_CONFIG.CALLBACK_URL}`);
+    console.log(`📋 Payload: userId=${userId}, instanceId=${instanceId}, contactPhone=${contactPhone}, messageId=${messageId}`);
+
+    const payload = {
+      base64,
+      userId,
+      contactPhone,
+      instanceId,
+      messageId,
+      callbackUrl: TRANSCRIPTION_CONFIG.CALLBACK_URL,
+    };
+
+    console.log(`📦 Payload completo (base64 length: ${base64.length}):`, {
+      ...payload,
+      base64: `[${base64.length} caracteres]`,
+    });
 
     // Enviar para webhook de transcrição
     const response = await axios.post(
       TRANSCRIPTION_CONFIG.WEBHOOK_URL,
-      {
-        base64,
-        userId,
-        contactPhone,
-        instanceId,
-        messageId,
-        callbackUrl: TRANSCRIPTION_CONFIG.CALLBACK_URL,
-      },
+      payload,
       {
         timeout: 30000,
         headers: {
@@ -215,6 +253,11 @@ export async function transcribeAudio(
       console.error(`❌ Erro ao enviar áudio para transcrição:`, error.message);
       console.error(`📡 Status:`, error.response?.status);
       console.error(`📄 Resposta:`, error.response?.data);
+      console.error(`📋 Request config:`, {
+        url: error.config?.url,
+        method: error.config?.method,
+        data: error.config?.data ? JSON.parse(error.config.data) : null,
+      });
     } else {
       console.error(`❌ Erro desconhecido ao transcrever áudio:`, error);
     }
