@@ -457,21 +457,28 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
             console.error('❌ Erro ao processar workflows:', workflowError);
             // Não bloquear o processamento da mensagem se o workflow falhar
           }
+        }
 
-          // Processar com Agente de IA (se houver agente ativo)
+        // Processar com Agente de IA (se houver agente ativo) - para mensagens recebidas (texto ou áudio)
+        if (!fromMe) {
           try {
+            console.log(`🔍 Verificando agente de IA para instância: ${instance._id.toString()}`);
             const agent = await AIAgentService.getActiveByInstance(instance._id.toString());
             if (agent) {
+              console.log(`✅ Agente de IA encontrado: ${agent.name} (ativo: ${agent.isActive})`);
               const fullPhone = extracted.remoteJid?.replace(/@.*$/, '') || phone;
               const messageId = extracted.messageId || `msg_${Date.now()}_${Math.random()}`;
               const messageType = extracted.messageType || 'conversation';
               const base64 = messageType === 'audioMessage' ? extracted.base64 : undefined;
+
+              console.log(`📋 Tipo de mensagem: ${messageType}, Base64 presente: ${!!base64}`);
 
               // Se for áudio, enviar para transcrição imediatamente
               if (messageType === 'audioMessage' && base64) {
                 const { transcribeAudio } = await import('../services/aiAgentProcessor');
                 try {
                   console.log(`🎤 Enviando áudio para transcrição imediatamente: ${messageId}`);
+                  console.log(`📦 Base64 length: ${base64.length} caracteres`);
                   await transcribeAudio(
                     base64,
                     userId,
@@ -483,6 +490,8 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
                   console.error('❌ Erro ao enviar áudio para transcrição:', transcriptionError);
                   // Continuar mesmo se falhar - a transcrição pode ser feita depois
                 }
+              } else if (messageType === 'audioMessage' && !base64) {
+                console.warn(`⚠️ Mensagem de áudio sem base64! messageId: ${messageId}`);
               }
 
               // Adicionar mensagem ao buffer
@@ -507,6 +516,8 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
               );
 
               console.log(`🤖 Mensagem adicionada ao buffer do agente de IA (${agent.name})`);
+            } else {
+              console.log(`⏭️ Nenhum agente de IA ativo encontrado para instância: ${instance._id.toString()}`);
             }
           } catch (agentError) {
             console.error('❌ Erro ao processar com agente de IA:', agentError);
