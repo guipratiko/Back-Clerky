@@ -105,10 +105,6 @@ export const createWorkflow = async (
       return next(createValidationError('Nome do workflow é obrigatório'));
     }
 
-    if (!instanceId) {
-      return next(createValidationError('ID da instância é obrigatório'));
-    }
-
     if (!nodes || !Array.isArray(nodes)) {
       return next(createValidationError('Nodes é obrigatório e deve ser um array'));
     }
@@ -117,10 +113,24 @@ export const createWorkflow = async (
       return next(createValidationError('Edges é obrigatório e deve ser um array'));
     }
 
+    // Se instanceId não for fornecido, tentar obter do nó de gatilho WhatsApp
+    let finalInstanceId = instanceId;
+    if (!finalInstanceId) {
+      const whatsappTriggerNode = nodes.find((node: any) => node.type === 'whatsappTrigger');
+      if (whatsappTriggerNode && whatsappTriggerNode.data?.instanceId) {
+        finalInstanceId = whatsappTriggerNode.data.instanceId;
+      }
+    }
+
+    // Se ainda não tiver instanceId, usar string vazia (será definida quando o workflow for executado)
+    if (!finalInstanceId) {
+      finalInstanceId = '';
+    }
+
     const workflow = await WorkflowService.createWorkflow({
       userId,
       name: name.trim(),
-      instanceId,
+      instanceId: finalInstanceId,
       nodes,
       edges,
       isActive,
