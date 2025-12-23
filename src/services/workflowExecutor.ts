@@ -332,11 +332,14 @@ async function executeResponseNode(
   console.log(`📤 Enviando resposta do tipo: ${responseType}`);
 
   try {
+    // Usar responseInstanceId do nó de resposta se fornecido, senão usar do contexto
+    const responseInstanceId = node.data?.responseInstanceId || context.instanceId;
+    
     // Buscar instância
-    const instance = await Instance.findById(context.instanceId);
+    const instance = await Instance.findById(responseInstanceId);
 
     if (!instance) {
-      console.error(`❌ Instância ${context.instanceId} não encontrada.`);
+      console.error(`❌ Instância ${responseInstanceId} não encontrada.`);
       await executeNextNodes(context, state, node.id);
       return;
     }

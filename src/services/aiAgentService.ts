@@ -3,6 +3,7 @@
  */
 
 import { pgPool } from '../config/databases';
+import { parseJsonbField } from '../utils/dbHelpers';
 
 export interface AIAgent {
   id: string;
@@ -12,6 +13,9 @@ export interface AIAgent {
   prompt: string;
   waitTime: number;
   isActive: boolean;
+  transcribeAudio: boolean;
+  agentType: 'manual' | 'assisted';
+  assistedConfig?: any; // Configuração do formulário assistido (JSON)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -23,6 +27,9 @@ export interface CreateAIAgentData {
   prompt: string;
   waitTime?: number;
   isActive?: boolean;
+  transcribeAudio?: boolean;
+  agentType?: 'manual' | 'assisted';
+  assistedConfig?: any;
 }
 
 export interface UpdateAIAgentData {
@@ -30,6 +37,9 @@ export interface UpdateAIAgentData {
   prompt?: string;
   waitTime?: number;
   isActive?: boolean;
+  transcribeAudio?: boolean;
+  agentType?: 'manual' | 'assisted';
+  assistedConfig?: any;
 }
 
 export class AIAgentService {
@@ -38,8 +48,8 @@ export class AIAgentService {
    */
   static async create(data: CreateAIAgentData): Promise<AIAgent> {
     const query = `
-      INSERT INTO ai_agents (user_id, instance_id, name, prompt, wait_time, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO ai_agents (user_id, instance_id, name, prompt, wait_time, is_active, transcribe_audio, agent_type, assisted_config)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
@@ -50,6 +60,9 @@ export class AIAgentService {
       data.prompt,
       data.waitTime || 13,
       data.isActive !== undefined ? data.isActive : true,
+      data.transcribeAudio !== undefined ? data.transcribeAudio : true,
+      data.agentType || 'manual',
+      data.assistedConfig ? JSON.stringify(data.assistedConfig) : null,
     ];
 
     const result = await pgPool.query(query, values);
@@ -135,6 +148,21 @@ export class AIAgentService {
       values.push(data.isActive);
     }
 
+    if (data.transcribeAudio !== undefined) {
+      updates.push(`transcribe_audio = $${paramCount++}`);
+      values.push(data.transcribeAudio);
+    }
+
+    if (data.agentType !== undefined) {
+      updates.push(`agent_type = $${paramCount++}`);
+      values.push(data.agentType);
+    }
+
+    if (data.assistedConfig !== undefined) {
+      updates.push(`assisted_config = $${paramCount++}`);
+      values.push(data.assistedConfig ? JSON.stringify(data.assistedConfig) : null);
+    }
+
     if (updates.length === 0) {
       return this.getById(id, userId);
     }
@@ -183,6 +211,9 @@ export class AIAgentService {
       prompt: row.prompt,
       waitTime: row.wait_time,
       isActive: row.is_active,
+      transcribeAudio: row.transcribe_audio !== undefined ? row.transcribe_audio : true,
+      agentType: (row.agent_type || 'manual') as 'manual' | 'assisted',
+      assistedConfig: parseJsonbField(row.assisted_config, undefined),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

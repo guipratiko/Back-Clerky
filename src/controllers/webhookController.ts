@@ -473,8 +473,8 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
 
               console.log(`📋 Tipo de mensagem: ${messageType}, Base64 presente: ${!!base64}`);
 
-              // Se for áudio, enviar para transcrição imediatamente
-              if (messageType === 'audioMessage' && base64) {
+              // Se for áudio e transcrição estiver habilitada, enviar para transcrição imediatamente
+              if (messageType === 'audioMessage' && base64 && agent.transcribeAudio) {
                 const { transcribeAudio } = await import('../services/aiAgentProcessor');
                 try {
                   console.log(`🎤 Enviando áudio para transcrição imediatamente: ${messageId}`);
@@ -490,6 +490,8 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
                   console.error('❌ Erro ao enviar áudio para transcrição:', transcriptionError);
                   // Continuar mesmo se falhar - a transcrição pode ser feita depois
                 }
+              } else if (messageType === 'audioMessage' && !agent.transcribeAudio) {
+                console.log(`⏭️ Transcrição de áudio desabilitada para agente ${agent.name}`);
               } else if (messageType === 'audioMessage' && !base64) {
                 console.warn(`⚠️ Mensagem de áudio sem base64! messageId: ${messageId}`);
               }

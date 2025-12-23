@@ -29,6 +29,7 @@ export interface WorkflowNode {
     mediaUrl?: string; // Para response (mídia)
     caption?: string; // Para response (legenda)
     fileName?: string; // Para response (arquivo)
+    responseInstanceId?: string; // Para response (instância de onde enviar a resposta - diferente do instanceId do trigger)
   };
 }
 

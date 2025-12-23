@@ -88,6 +88,8 @@ async function runAllMigrations(): Promise<void> {
       '010_create_google_tokens_table.sql',
       '011_create_openai_memory_table.sql',
       '012_create_ai_agents_table.sql',
+      '013_add_transcribe_audio_to_ai_agents.sql',
+      '014_add_agent_type_to_ai_agents.sql',
 ];
     
     for (const migration of migrations) {
