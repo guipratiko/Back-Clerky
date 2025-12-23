@@ -8,7 +8,7 @@ import { getIO } from '../socket/socketServer';
 import Instance, { IInstance } from '../models/Instance';
 import { ContactService } from '../services/contactService';
 import { CRMColumnService } from '../services/crmColumnService';
-import { normalizePhone } from './formatters';
+import { normalizePhone } from './numberNormalizer';
 import {
   createNotFoundError,
   createValidationError,
@@ -19,7 +19,7 @@ import {
  * Converte número de telefone para remoteJid do WhatsApp
  */
 export const phoneToRemoteJid = (phone: string): string => {
-  const normalized = normalizePhone(phone);
+  const normalized = normalizePhone(phone, '55');
   if (!normalized) {
     throw new Error('Número de telefone inválido');
   }
@@ -73,12 +73,13 @@ export const getOrCreateContactAndColumn = async (
   }
 
   // Buscar ou criar contato
+  const normalizedPhone = normalizePhone(phone, '55') || phone;
   const contact = await ContactService.findOrCreate({
     userId,
     instanceId,
     remoteJid,
-    phone: normalizePhone(phone),
-    name: normalizePhone(phone), // Nome padrão será o telefone
+    phone: normalizedPhone,
+    name: normalizedPhone, // Nome padrão será o telefone
     columnId: firstColumn.id,
   });
 

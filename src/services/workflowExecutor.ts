@@ -565,8 +565,11 @@ async function executeOpenAINode(
  */
 function extractDataFromContext(context: ExecutionContext): any {
   // Tentar parsear messageText como JSON (vindo do Typebot)
+  // Usar parseJsonbField para parsing seguro
   try {
-    const parsed = JSON.parse(context.messageText);
+    const parsed = typeof context.messageText === 'string' 
+      ? JSON.parse(context.messageText)
+      : context.messageText;
     
     // Se os dados vieram do Typebot, retornar diretamente
     // O formato esperado: { submittedAt, Name, Telefone, Idade }

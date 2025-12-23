@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
-import { normalizeName, normalizePhone } from '../utils/formatters';
+import { normalizeName } from '../utils/formatters';
+import { normalizePhone } from '../utils/numberNormalizer';
 import { AuthRequest } from '../middleware/auth';
 import { JWT_CONFIG } from '../config/constants';
 import {
@@ -196,8 +197,9 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
     }
 
     if (phone !== undefined) {
-      // Normalizar telefone: apenas números
-      user.phone = phone?.trim() ? normalizePhone(phone.trim()) : undefined;
+      // Normalizar telefone com DDI
+      const normalized = phone?.trim() ? normalizePhone(phone.trim(), '55') : null;
+      user.phone = normalized || undefined;
     }
 
     await user.save();

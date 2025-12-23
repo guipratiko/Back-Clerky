@@ -20,14 +20,6 @@ export const normalizeName = (name: string): string => {
 };
 
 /**
- * Remove caracteres não numéricos do telefone
- */
-export const normalizePhone = (phone: string): string => {
-  if (!phone) return '';
-  return phone.replace(/\D/g, '');
-};
-
-/**
  * Formata telefone do WhatsApp para exibição
  * Remove @s.whatsapp.net, remove os 2 primeiros dígitos (55) e formata
  * Ex: "556298448536@s.whatsapp.net" -> "62 9844-8536"
