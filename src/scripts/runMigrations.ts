@@ -84,9 +84,10 @@ async function runAllMigrations(): Promise<void> {
       '006_create_dispatches_tables.sql',
       '007_cleanup_dispatches_table.sql',
       '008_fix_templates_type_constraint.sql',
-  '009_create_workflows_tables.sql',
-  '010_create_google_tokens_table.sql',
-  '011_create_openai_memory_table.sql',
+      '009_create_workflows_tables.sql',
+      '010_create_google_tokens_table.sql',
+      '011_create_openai_memory_table.sql',
+      '012_create_ai_agents_table.sql',
 ];
     
     for (const migration of migrations) {

@@ -67,3 +67,14 @@ export const GOOGLE_CONFIG = {
   API_URL: process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:4331',
 };
 
+// OpenAI Configuration (Chave fixa para Agente de IA)
+export const OPENAI_CONFIG = {
+  API_KEY: process.env.OPENAI_API_KEY || '',
+};
+
+// Transcrição de Áudio Configuration
+export const TRANSCRIPTION_CONFIG = {
+  WEBHOOK_URL: process.env.TRANSCRIPTION_WEBHOOK_URL || 'https://api.clerky.com.br/webhook/178f79bf-6989-493d-bd58-b1ed7480b2bc',
+  CALLBACK_URL: process.env.TRANSCRIPTION_CALLBACK_URL || 'https://api.clerky.com.br/api/ai-agent/transcription-callback',
+};
+

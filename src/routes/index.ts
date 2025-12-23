@@ -6,6 +6,7 @@ import crmRoutes from './crm.routes';
 import dispatchRoutes from './dispatch.routes';
 import workflowRoutes from './workflow.routes';
 import googleRoutes from './google.routes';
+import aiAgentRoutes from './aiAgent.routes';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use('/crm', crmRoutes);
 router.use('/dispatches', dispatchRoutes);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
+router.use('/ai-agent', aiAgentRoutes);
 
 export default router;
 

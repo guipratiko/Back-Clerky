@@ -9,6 +9,11 @@ import { CRMColumnService } from '../services/crmColumnService';
 import { ContactService } from '../services/contactService';
 import { MessageService } from '../services/messageService';
 import { processMessageForWorkflows } from '../services/workflowExecutor';
+import { AIAgentService } from '../services/aiAgentService';
+import {
+  addMessageToBuffer,
+  scheduleMessageProcessing,
+} from '../services/aiAgentProcessor';
 
 /**
  * Extrai e exibe informações relevantes do payload de forma limpa
@@ -451,6 +456,43 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
           } catch (workflowError) {
             console.error('❌ Erro ao processar workflows:', workflowError);
             // Não bloquear o processamento da mensagem se o workflow falhar
+          }
+
+          // Processar com Agente de IA (se houver agente ativo)
+          try {
+            const agent = await AIAgentService.getActiveByInstance(instance._id.toString());
+            if (agent) {
+              const fullPhone = extracted.remoteJid?.replace(/@.*$/, '') || phone;
+              const messageId = extracted.messageId || `msg_${Date.now()}_${Math.random()}`;
+              const messageType = extracted.messageType || 'conversation';
+              const base64 = messageType === 'audioMessage' ? extracted.base64 : undefined;
+
+              // Adicionar mensagem ao buffer
+              addMessageToBuffer(
+                fullPhone,
+                instance._id.toString(),
+                userId,
+                messageId,
+                conversation || '',
+                messageType,
+                base64
+              );
+
+              // Agendar processamento após tempo de espera
+              scheduleMessageProcessing(
+                agent.id,
+                agent.prompt,
+                agent.waitTime,
+                fullPhone,
+                instance._id.toString(),
+                userId
+              );
+
+              console.log(`🤖 Mensagem adicionada ao buffer do agente de IA (${agent.name})`);
+            }
+          } catch (agentError) {
+            console.error('❌ Erro ao processar com agente de IA:', agentError);
+            // Não bloquear o processamento da mensagem se o agente falhar
           }
         }
       } catch (msgError: any) {
