@@ -74,7 +74,7 @@ export const OPENAI_CONFIG = {
 
 // Transcrição de Áudio Configuration
 export const TRANSCRIPTION_CONFIG = {
-  WEBHOOK_URL: process.env.TRANSCRIPTION_WEBHOOK_URL || 'https://back.clerky.com.br/webhook/178f79bf-6989-493d-bd58-b1ed7480b2bc',
+  WEBHOOK_URL: process.env.TRANSCRIPTION_WEBHOOK_URL || 'https://api.clerky.com.br/webhook/178f79bf-6989-493d-bd58-b1ed7480b2bc',
   CALLBACK_URL: process.env.TRANSCRIPTION_CALLBACK_URL || 'https://back.clerky.com.br/api/ai-agent/transcription-callback',
 };
 

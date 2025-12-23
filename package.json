@@ -14,6 +14,7 @@
     "fix-constraint": "ts-node-dev --transpile-only src/scripts/fixTemplatesConstraint.ts",
     "drop-tables": "ts-node-dev --transpile-only src/scripts/dropCrmTables.ts",
     "drop-all": "ts-node-dev --transpile-only src/scripts/dropAllTables.ts",
+    "reset-db": "ts-node-dev --transpile-only src/scripts/resetDatabase.ts",
     "kill": "bash scripts/kill-server.sh"
   },
   "keywords": [

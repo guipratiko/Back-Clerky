@@ -467,6 +467,24 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
               const messageType = extracted.messageType || 'conversation';
               const base64 = messageType === 'audioMessage' ? extracted.base64 : undefined;
 
+              // Se for áudio, enviar para transcrição imediatamente
+              if (messageType === 'audioMessage' && base64) {
+                const { transcribeAudio } = await import('../services/aiAgentProcessor');
+                try {
+                  console.log(`🎤 Enviando áudio para transcrição imediatamente: ${messageId}`);
+                  await transcribeAudio(
+                    base64,
+                    userId,
+                    fullPhone,
+                    instance._id.toString(),
+                    messageId
+                  );
+                } catch (transcriptionError) {
+                  console.error('❌ Erro ao enviar áudio para transcrição:', transcriptionError);
+                  // Continuar mesmo se falhar - a transcrição pode ser feita depois
+                }
+              }
+
               // Adicionar mensagem ao buffer
               addMessageToBuffer(
                 fullPhone,

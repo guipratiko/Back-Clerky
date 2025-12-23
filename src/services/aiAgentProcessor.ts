@@ -183,9 +183,11 @@ export async function transcribeAudio(
   contactPhone: string,
   instanceId: string,
   messageId: string
-): Promise<string> {
+): Promise<void> {
   try {
     console.log(`🎤 Enviando áudio para transcrição: ${messageId}`);
+    console.log(`📡 URL: ${TRANSCRIPTION_CONFIG.WEBHOOK_URL}`);
+    console.log(`📞 Callback: ${TRANSCRIPTION_CONFIG.CALLBACK_URL}`);
 
     // Enviar para webhook de transcrição
     const response = await axios.post(
@@ -200,14 +202,23 @@ export async function transcribeAudio(
       },
       {
         timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
       }
     );
 
-    console.log(`✅ Áudio enviado para transcrição: ${messageId}`);
-    return response.data.transcription || '';
-  } catch (error) {
-    console.error(`❌ Erro ao transcrever áudio:`, error);
-    throw error;
+    console.log(`✅ Áudio enviado para transcrição com sucesso: ${messageId}`);
+    console.log(`📝 Resposta do serviço:`, response.data);
+  } catch (error: any) {
+    if (axios.isAxiosError(error)) {
+      console.error(`❌ Erro ao enviar áudio para transcrição:`, error.message);
+      console.error(`📡 Status:`, error.response?.status);
+      console.error(`📄 Resposta:`, error.response?.data);
+    } else {
+      console.error(`❌ Erro desconhecido ao transcrever áudio:`, error);
+    }
+    // Não lançar erro - a transcrição pode ser feita depois ou via callback
   }
 }
 
@@ -249,25 +260,26 @@ export async function processBufferedMessages(
         if (msg.transcription) {
           finalContent = msg.transcription;
           console.log(`✅ Usando transcrição recebida para mensagem ${msg.messageId}`);
-        } else if (msg.base64) {
-          // Se não tiver transcrição ainda, tentar transcrever
-          try {
-            const transcription = await transcribeAudio(
-              msg.base64,
-              userId,
-              contactPhone,
-              instanceId,
-              msg.messageId
-            );
-            finalContent = transcription;
-            console.log(`✅ Áudio transcrito para mensagem ${msg.messageId}`);
-          } catch (error) {
-            console.error(`❌ Erro ao transcrever áudio ${msg.messageId}:`, error);
-            // Continuar mesmo se falhar
-            finalContent = '[Áudio não transcrito]';
-          }
         } else {
-          finalContent = '[Áudio sem transcrição]';
+          // Se não tiver transcrição ainda, usar placeholder
+          // A transcrição deve chegar via callback antes do processamento
+          finalContent = '[Aguardando transcrição do áudio...]';
+          console.log(`⏳ Aguardando transcrição para mensagem ${msg.messageId}`);
+          
+          // Se tiver base64, tentar transcrever novamente (caso o envio inicial tenha falhado)
+          if (msg.base64) {
+            try {
+              await transcribeAudio(
+                msg.base64,
+                userId,
+                contactPhone,
+                instanceId,
+                msg.messageId
+              );
+            } catch (error) {
+              console.error(`❌ Erro ao reenviar áudio para transcrição ${msg.messageId}:`, error);
+            }
+          }
         }
       }
 
