@@ -34,7 +34,7 @@ interface BufferedMessage {
 // Buffer de mensagens por contato (aguarda tempo configurável antes de processar)
 const messageBuffers = new Map<string, BufferedMessage>();
 
-interface ContactMemory {
+export interface ContactMemory {
   history: Array<{
     role: 'user' | 'assistant';
     content: string;
@@ -338,11 +338,10 @@ export async function processBufferedMessages(
       throw new Error('Número de telefone inválido');
     }
 
-    await sendMessage(
-      instance.instanceName,
-      `${normalizedPhone}@s.whatsapp.net`,
-      aiResponse
-    );
+    await sendMessage(instance.instanceName, {
+      number: `${normalizedPhone}@s.whatsapp.net`,
+      text: aiResponse,
+    });
 
     console.log(`✅ Resposta enviada para ${contactPhone}`);
   } catch (error) {
@@ -412,7 +411,7 @@ async function moveContactToColumn2(
     }
 
     await axios.post(
-      `${process.env.API_URL || 'https://api.clerky.com.br'}/api/v1/webhook/move-contact`,
+      `${process.env.API_URL || process.env.BACKEND_URL || 'https://back.clerky.com.br'}/api/v1/webhook/move-contact`,
       {
         phone: normalizedPhone,
         columnId: column2.id,

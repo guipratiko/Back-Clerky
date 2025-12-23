@@ -5,7 +5,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { AIAgentService } from '../services/aiAgentService';
-import { getLeads } from '../services/aiAgentProcessor';
+import { getLeads as getLeadsFromProcessor, ContactMemory } from '../services/aiAgentProcessor';
 import {
   createValidationError,
   createNotFoundError,
@@ -268,7 +268,7 @@ export const getLeads = async (
 
     res.status(200).json({
       status: 'success',
-      leads: leads.map((lead) => ({
+      leads: leads.map((lead: ContactMemory) => ({
         phone: lead.structuredData.phone,
         name: lead.structuredData.name,
         interest: lead.structuredData.interest,
@@ -287,7 +287,7 @@ export const getLeads = async (
  * Callback de transcrição de áudio
  * POST /api/ai-agent/transcription-callback
  * 
- * URL para receber transcrições: https://api.clerky.com.br/api/ai-agent/transcription-callback
+ * URL para receber transcrições: https://back.clerky.com.br/api/ai-agent/transcription-callback
  * 
  * Payload esperado:
  * {
@@ -307,10 +307,11 @@ export const transcriptionCallback = async (
     const { userId, contactPhone, instanceId, messageId, transcription } = req.body;
 
     if (!transcription) {
-      return res.status(400).json({
+      res.status(400).json({
         status: 'error',
         message: 'Transcrição não fornecida',
       });
+      return;
     }
 
     console.log(`📝 Transcrição recebida para mensagem ${messageId}: ${transcription.substring(0, 50)}...`);

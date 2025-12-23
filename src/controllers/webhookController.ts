@@ -475,7 +475,7 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
                 messageId,
                 conversation || '',
                 messageType,
-                base64
+                base64 || undefined
               );
 
               // Agendar processamento após tempo de espera
