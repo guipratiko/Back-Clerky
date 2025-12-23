@@ -61,11 +61,15 @@ export class GoogleSheetsService {
     );
 
     const state = `${userId}:${nodeId}:${workflowId}`;
-    const scope = 'https://www.googleapis.com/auth/spreadsheets';
+    // Escopos necessários: Sheets para criar/editar planilhas e Drive para listar planilhas
+    const scopes = [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.readonly', // Para listar planilhas
+    ];
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
-      scope: [scope],
+      scope: scopes,
       state,
       prompt: 'consent', // Força mostrar tela de consentimento para obter refresh_token
     });
