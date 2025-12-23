@@ -5,6 +5,7 @@ import {
   googleAuthCallback,
   createSpreadsheet,
   testGoogleConnection,
+  listSpreadsheets,
 } from '../controllers/googleController';
 
 const router = Router();
@@ -17,6 +18,7 @@ router.use(protect);
 router.get('/auth', googleAuth);
 router.get('/test', testGoogleConnection);
 router.post('/spreadsheet', createSpreadsheet);
+router.get('/spreadsheets', listSpreadsheets);
 
 export default router;
 

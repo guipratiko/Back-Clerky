@@ -369,4 +369,33 @@ export class GoogleSheetsService {
       throw new Error(`Erro ao obter informações: ${error.message}`);
     }
   }
+
+  /**
+   * Listar planilhas do usuário
+   */
+  static async listSpreadsheets(userId: string): Promise<SpreadsheetInfo[]> {
+    const auth = await this.getAuthenticatedClient(userId);
+    const drive = google.drive({ version: 'v3', auth });
+
+    try {
+      // Buscar planilhas do Google Sheets (mimeType: 'application/vnd.google-apps.spreadsheet')
+      const response = await drive.files.list({
+        q: "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+        fields: 'files(id, name, webViewLink)',
+        orderBy: 'modifiedTime desc',
+        pageSize: 50, // Limitar a 50 planilhas mais recentes
+      });
+
+      const spreadsheets: SpreadsheetInfo[] = (response.data.files || []).map((file) => ({
+        id: file.id || '',
+        name: file.name || 'Planilha sem nome',
+        url: file.webViewLink || `https://docs.google.com/spreadsheets/d/${file.id}`,
+      }));
+
+      return spreadsheets;
+    } catch (error: any) {
+      console.error('Erro ao listar planilhas:', error);
+      throw new Error(`Erro ao listar planilhas: ${error.message}`);
+    }
+  }
 }

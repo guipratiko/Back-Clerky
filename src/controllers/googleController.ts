@@ -261,3 +261,36 @@ export const createSpreadsheet = async (
   }
 };
 
+/**
+ * Listar planilhas do usuário
+ * GET /api/google/spreadsheets
+ */
+export const listSpreadsheets = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    // Verificar se usuário está autenticado
+    const isAuthenticated = await GoogleSheetsService.isUserAuthenticated(userId);
+    if (!isAuthenticated) {
+      return next(createValidationError('Usuário não autenticado com Google. Por favor, autentique primeiro.'));
+    }
+
+    const spreadsheets = await GoogleSheetsService.listSpreadsheets(userId);
+
+    res.status(200).json({
+      status: 'success',
+      spreadsheets,
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao listar planilhas'));
+  }
+};
+
