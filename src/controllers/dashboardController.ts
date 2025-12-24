@@ -155,7 +155,9 @@ export const getDashboardStats = async (
           total: workflows.length,
         },
         groups: {
-          total: parseInt(groupsCount.rows[0].count),
+          total: typeof groupsCount.rows[0].count === 'number'
+            ? groupsCount.rows[0].count
+            : parseInt(groupsCount.rows[0].count as string, 10),
         },
         aiAgents: {
           total: aiAgents.length,
