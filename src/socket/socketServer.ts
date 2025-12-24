@@ -161,11 +161,8 @@ export const emitDispatchUpdate = (userId: string, dispatch: any): void => {
   });
 };
 
-// Cache para debounce de emissões de grupos
-const groupsUpdateCache = new Map<string, { timeout: NodeJS.Timeout; lastEmit: number }>();
-
 /**
- * Emitir evento de atualização de grupos para o usuário com debounce
+ * Emitir evento de atualização de grupos para o usuário
  */
 export const emitGroupsUpdate = (userId: string, instanceId: string): void => {
   if (!io) {
@@ -173,37 +170,11 @@ export const emitGroupsUpdate = (userId: string, instanceId: string): void => {
   }
 
   const userIdStr = userId.toString();
-  const cacheKey = `${userIdStr}-${instanceId}`;
-  const now = Date.now();
-  
-  // Se já existe um timeout agendado, cancelar e reagendar
-  if (groupsUpdateCache.has(cacheKey)) {
-    const cached = groupsUpdateCache.get(cacheKey)!;
-    clearTimeout(cached.timeout);
-    
-    // Se passou menos de 3 segundos desde a última emissão, aguardar
-    if (now - cached.lastEmit < 3000) {
-      const timeout = setTimeout(() => {
-        const userIdStr = userId.toString();
-        console.log(`📤 Emitindo atualização de grupos para usuário ${userIdStr} - instância ${instanceId}`);
-        io?.to(userIdStr).emit('groups-updated', {
-          instanceId: instanceId,
-        });
-        groupsUpdateCache.set(cacheKey, { timeout: null as any, lastEmit: Date.now() });
-      }, 3000 - (now - cached.lastEmit));
-      
-      groupsUpdateCache.set(cacheKey, { timeout, lastEmit: cached.lastEmit });
-      return;
-    }
-  }
-  
-  // Emitir imediatamente se passou tempo suficiente
   console.log(`📤 Emitindo atualização de grupos para usuário ${userIdStr} - instância ${instanceId}`);
+  
   io.to(userIdStr).emit('groups-updated', {
     instanceId: instanceId,
   });
-  
-  groupsUpdateCache.set(cacheKey, { timeout: null as any, lastEmit: now });
 };
 
 // Função para verificar status de todas as instâncias de um usuário periodicamente
