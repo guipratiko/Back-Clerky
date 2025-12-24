@@ -10,10 +10,21 @@ export const requestEvolutionAPI = async (
   path: string,
   body?: any
 ): Promise<{ statusCode: number; data: any }> => {
+  const requestId = `evolution-api-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+  
+  console.log(`[${requestId}] [EVOLUTION API] Requisição iniciada`, {
+    method,
+    path,
+    body,
+    timestamp: new Date().toISOString(),
+  });
+
   const hostname = EVOLUTION_CONFIG.HOST;
   const apiKey = EVOLUTION_CONFIG.API_KEY;
 
   if (!apiKey) {
+    console.error(`[${requestId}] [EVOLUTION API] Erro: API key não configurada`);
     throw new Error('EVOLUTION_APIKEY não configurada no .env');
   }
 
@@ -44,6 +55,7 @@ export const requestEvolutionAPI = async (
       });
 
       res.on('end', () => {
+        const endTime = Date.now();
         const raw = Buffer.concat(chunks).toString('utf8');
         const ok = res.statusCode && res.statusCode >= 200 && res.statusCode < 300;
 
@@ -55,6 +67,14 @@ export const requestEvolutionAPI = async (
         }
 
         if (!ok) {
+          console.error(`[${requestId}] [EVOLUTION API] Erro na resposta`, {
+            statusCode: res.statusCode,
+            statusMessage: res.statusMessage,
+            path,
+            response: raw,
+            duration: `${endTime - startTime}ms`,
+            timestamp: new Date().toISOString(),
+          });
           return reject(
             new Error(
               `HTTP ${res.statusCode} ${res.statusMessage}\nPATH: ${path}\nRESPONSE: ${raw}`
@@ -62,12 +82,35 @@ export const requestEvolutionAPI = async (
           );
         }
 
+        console.log(`[${requestId}] [EVOLUTION API] Requisição concluída com sucesso`, {
+          statusCode: res.statusCode,
+          path,
+          duration: `${endTime - startTime}ms`,
+          timestamp: new Date().toISOString(),
+        });
+
         resolve({ statusCode: res.statusCode || 200, data: parsed });
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (error) => {
+      const endTime = Date.now();
+      console.error(`[${requestId}] [EVOLUTION API] Erro na requisição`, {
+        error: error.message,
+        path,
+        duration: `${endTime - startTime}ms`,
+        timestamp: new Date().toISOString(),
+      });
+      reject(error);
+    });
+    
     req.setTimeout(30000, () => {
+      const endTime = Date.now();
+      console.error(`[${requestId}] [EVOLUTION API] Timeout na requisição`, {
+        path,
+        duration: `${endTime - startTime}ms`,
+        timestamp: new Date().toISOString(),
+      });
       req.destroy();
       reject(new Error('Timeout na requisição para Evolution API'));
     });
@@ -75,6 +118,14 @@ export const requestEvolutionAPI = async (
     if (data) {
       req.write(data);
     }
+    
+    console.log(`[${requestId}] [EVOLUTION API] Enviando requisição`, {
+      method,
+      path,
+      hasBody: !!body,
+      timestamp: new Date().toISOString(),
+    });
+    
     req.end();
   });
 };

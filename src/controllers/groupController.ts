@@ -638,33 +638,63 @@ export const updateGroupSettings = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const requestId = `backend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+  
   try {
+    console.log(`[${requestId}] [BACKEND] updateGroupSettings chamado`, {
+      timestamp: new Date().toISOString(),
+      body: req.body,
+      headers: {
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+      },
+    });
+
     const userId = req.user?.id;
     const { instanceId, groupId, announcement, locked } = req.body;
 
+    console.log(`[${requestId}] [BACKEND] Valores recebidos:`, {
+      userId,
+      instanceId,
+      groupId,
+      announcement,
+      locked,
+      announcementType: typeof announcement,
+      lockedType: typeof locked,
+      announcementRaw: JSON.stringify(announcement),
+      lockedRaw: JSON.stringify(locked),
+    });
+
     if (!userId) {
+      console.log(`[${requestId}] [BACKEND] Erro: usuário não autenticado`);
       return next(createValidationError('Usuário não autenticado'));
     }
 
     if (!instanceId) {
+      console.log(`[${requestId}] [BACKEND] Erro: instanceId não fornecido`);
       return next(createValidationError('ID da instância é obrigatório'));
     }
 
     if (!groupId) {
+      console.log(`[${requestId}] [BACKEND] Erro: groupId não fornecido`);
       return next(createValidationError('ID do grupo é obrigatório'));
     }
 
     if (announcement === undefined && locked === undefined) {
+      console.log(`[${requestId}] [BACKEND] Erro: nenhuma configuração fornecida`);
       return next(createValidationError('Pelo menos uma configuração deve ser fornecida'));
     }
 
     // Buscar instância
     const instance = await Instance.findById(instanceId);
     if (!instance) {
+      console.log(`[${requestId}] [BACKEND] Erro: instância não encontrada`);
       return next(createNotFoundError('Instância'));
     }
 
     if (instance.userId.toString() !== userId) {
+      console.log(`[${requestId}] [BACKEND] Erro: instância não pertence ao usuário`);
       return next(createValidationError('Instância não pertence ao usuário'));
     }
 
@@ -672,14 +702,29 @@ export const updateGroupSettings = async (
     const announcementValue = announcement === undefined ? undefined : Boolean(announcement);
     const lockedValue = locked === undefined ? undefined : Boolean(locked);
 
+    console.log(`[${requestId}] [BACKEND] Valores normalizados:`, {
+      announcementValue,
+      lockedValue,
+      announcementValueType: typeof announcementValue,
+      lockedValueType: typeof lockedValue,
+    });
+
     // Atualizar configurações na Evolution API
     // A API aceita apenas uma ação por vez, então precisamos fazer duas chamadas se necessário
     const results: Array<{ setting: string; success: boolean; error?: string }> = [];
 
     // Atualizar announcement apenas se foi fornecido explicitamente
     if (announcementValue !== undefined) {
+      const action = announcementValue ? 'announcement' : 'not_announcement';
+      console.log(`[${requestId}] [BACKEND] Atualizando announcement:`, {
+        action,
+        instanceName: instance.instanceName,
+        groupId,
+        announcementValue,
+      });
+      
       try {
-        const action = announcementValue ? 'announcement' : 'not_announcement';
+        const evolutionStartTime = Date.now();
         await requestEvolutionAPI(
           'POST',
           `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
@@ -687,17 +732,40 @@ export const updateGroupSettings = async (
             action,
           }
         );
+        const evolutionEndTime = Date.now();
+        
+        console.log(`[${requestId}] [BACKEND] Evolution API - announcement atualizado com sucesso`, {
+          action,
+          duration: `${evolutionEndTime - evolutionStartTime}ms`,
+          timestamp: new Date().toISOString(),
+        });
+        
         results.push({ setting: 'announcement', success: true });
       } catch (error: any) {
-        console.error('Erro ao atualizar announcement:', error);
+        console.error(`[${requestId}] [BACKEND] Erro ao atualizar announcement na Evolution API:`, {
+          error: error.message,
+          stack: error.stack,
+          action,
+          timestamp: new Date().toISOString(),
+        });
         results.push({ setting: 'announcement', success: false, error: error.message });
       }
+    } else {
+      console.log(`[${requestId}] [BACKEND] announcement não será atualizado (undefined)`);
     }
 
     // Atualizar locked apenas se foi fornecido explicitamente
     if (lockedValue !== undefined) {
+      const action = lockedValue ? 'locked' : 'unlocked';
+      console.log(`[${requestId}] [BACKEND] Atualizando locked:`, {
+        action,
+        instanceName: instance.instanceName,
+        groupId,
+        lockedValue,
+      });
+      
       try {
-        const action = lockedValue ? 'locked' : 'unlocked';
+        const evolutionStartTime = Date.now();
         await requestEvolutionAPI(
           'POST',
           `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
@@ -705,16 +773,44 @@ export const updateGroupSettings = async (
             action,
           }
         );
+        const evolutionEndTime = Date.now();
+        
+        console.log(`[${requestId}] [BACKEND] Evolution API - locked atualizado com sucesso`, {
+          action,
+          duration: `${evolutionEndTime - evolutionStartTime}ms`,
+          timestamp: new Date().toISOString(),
+        });
+        
         results.push({ setting: 'locked', success: true });
       } catch (error: any) {
-        console.error('Erro ao atualizar locked:', error);
+        console.error(`[${requestId}] [BACKEND] Erro ao atualizar locked na Evolution API:`, {
+          error: error.message,
+          stack: error.stack,
+          action,
+          timestamp: new Date().toISOString(),
+        });
         results.push({ setting: 'locked', success: false, error: error.message });
       }
+    } else {
+      console.log(`[${requestId}] [BACKEND] locked não será atualizado (undefined)`);
     }
 
+    const endTime = Date.now();
     const hasErrors = results.some((r) => !r.success);
+    
+    console.log(`[${requestId}] [BACKEND] Resultados finais:`, {
+      results,
+      hasErrors,
+      totalDuration: `${endTime - startTime}ms`,
+      timestamp: new Date().toISOString(),
+    });
+
     if (hasErrors) {
       const errorMessages = results.filter((r) => !r.success).map((r) => r.error).join(', ');
+      console.error(`[${requestId}] [BACKEND] Erro ao atualizar configurações:`, {
+        errorMessages,
+        results,
+      });
       return next(
         handleControllerError(
           new Error(errorMessages),
@@ -723,11 +819,22 @@ export const updateGroupSettings = async (
       );
     }
 
+    console.log(`[${requestId}] [BACKEND] Sucesso - enviando resposta`, {
+      status: 'success',
+      totalDuration: `${endTime - startTime}ms`,
+    });
+
     res.status(200).json({
       status: 'success',
       message: 'Configurações do grupo atualizadas com sucesso',
     });
   } catch (error: unknown) {
+    const endTime = Date.now();
+    console.error(`[${requestId}] [BACKEND] Erro geral ao atualizar configurações:`, {
+      error,
+      totalDuration: `${endTime - startTime}ms`,
+      timestamp: new Date().toISOString(),
+    });
     return next(handleControllerError(error, 'Erro ao atualizar configurações do grupo'));
   }
 };
