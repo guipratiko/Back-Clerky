@@ -118,7 +118,19 @@ export const getAllGroups = async (
       });
     } catch (evolutionError: any) {
       console.error('Erro ao buscar grupos na Evolution API:', evolutionError);
-      // Se a Evolution API retornar erro, retornar array vazio
+      
+      // Se for erro de rate limit, retornar erro específico
+      if (evolutionError.message?.includes('rate-overlimit') || 
+          evolutionError.response?.response?.message === 'rate-overlimit') {
+        return next(
+          handleControllerError(
+            evolutionError,
+            'Limite de requisições excedido. Aguarde alguns segundos e tente novamente.'
+          )
+        );
+      }
+      
+      // Para outros erros, retornar array vazio
       res.status(200).json({
         status: 'success',
         groups: [],
