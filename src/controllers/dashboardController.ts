@@ -52,12 +52,13 @@ export const getDashboardStats = async (
       // Agentes IA
       AIAgentService.getByUserId(userId),
 
-      // Contatos por coluna
+      // Contatos por coluna (com nome da coluna)
       pgPool.query(
-        `SELECT c.column_id, COUNT(*) as count 
+        `SELECT c.column_id, COALESCE(col.name, 'Sem coluna') as column_name, COUNT(*) as count 
          FROM contacts c 
+         LEFT JOIN crm_columns col ON c.column_id = col.id AND col.user_id = $1
          WHERE c.user_id = $1 
-         GROUP BY c.column_id`,
+         GROUP BY c.column_id, col.name`,
         [userId]
       ),
 
@@ -108,6 +109,7 @@ export const getDashboardStats = async (
     // Processar contatos por coluna
     const contactsByColumnData = contactsByColumn.rows.map((row: any) => ({
       columnId: row.column_id,
+      columnName: row.column_name || 'Sem coluna',
       count: parseInt(row.count),
     }));
 
