@@ -30,6 +30,8 @@ export interface Group {
   creation?: number;
   participants?: GroupParticipant[];
   pictureUrl?: string;
+  announcement?: boolean; // true = only admins, false = all members
+  locked?: boolean; // true = only admins edit, false = all members edit
 }
 
 // Configuração do multer para upload de imagem
@@ -104,6 +106,8 @@ export const getAllGroups = async (
             }))
           : [],
         pictureUrl: group.pictureUrl || group.picture || group.groupPicture || undefined,
+        announcement: group.announcement !== undefined ? Boolean(group.announcement) : undefined,
+        locked: group.locked !== undefined ? Boolean(group.locked) : undefined,
       }));
 
       res.status(200).json({
@@ -617,6 +621,64 @@ export const getInviteCode = async (
     }
   } catch (error: unknown) {
     return next(handleControllerError(error, 'Erro ao obter código de convite'));
+  }
+};
+
+/**
+ * Atualizar configurações do grupo
+ * POST /api/groups/update-settings
+ */
+export const updateGroupSettings = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { instanceId, groupId, action } = req.body;
+
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    if (!instanceId) {
+      return next(createValidationError('ID da instância é obrigatório'));
+    }
+
+    if (!groupId) {
+      return next(createValidationError('ID do grupo é obrigatório'));
+    }
+
+    if (!action) {
+      return next(createValidationError('Ação é obrigatória'));
+    }
+
+    const validActions = ['announcement', 'not_announcement', 'locked', 'unlocked'];
+    if (!validActions.includes(action)) {
+      return next(createValidationError('Ação inválida'));
+    }
+
+    const instance = await Instance.findById(instanceId);
+    if (!instance) {
+      return next(createNotFoundError('Instância'));
+    }
+
+    if (instance.userId.toString() !== userId) {
+      return next(createValidationError('Instância não pertence ao usuário'));
+    }
+
+    await requestEvolutionAPI(
+      'POST',
+      `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
+      { action }
+    );
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Configuração do grupo atualizada com sucesso',
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao atualizar configuração do grupo'));
   }
 };
 
