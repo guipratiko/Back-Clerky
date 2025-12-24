@@ -482,8 +482,28 @@ const deleteMessageForEveryone = async (
  */
 export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<void> => {
   const { dispatchId, instanceName, contactData, templateId, defaultName, settings } = job.data;
+  
+  // Declarar postgresJobId uma única vez no início da função
+  const postgresJobId = job.data.jobId || job.id;
 
   try {
+    // Verificar se o job já foi processado (idempotência)
+    if (postgresJobId && job.data.jobId) {
+      const jobCheck = await pgPool.query(
+        `SELECT status FROM dispatch_jobs WHERE id = $1`,
+        [postgresJobId]
+      );
+
+      if (jobCheck.rows.length > 0) {
+        const currentStatus = jobCheck.rows[0].status;
+        // Se o job já foi enviado, falhou ou é inválido, não processar novamente
+        if (currentStatus === 'sent' || currentStatus === 'failed' || currentStatus === 'invalid') {
+          console.log(`⏭️ Job ${postgresJobId} já foi processado (status: ${currentStatus}). Pulando processamento.`);
+          return;
+        }
+      }
+    }
+
     // Garantir que o número está normalizado com DDI
     const normalizedPhone = normalizePhone(contactData.phone) || contactData.phone;
     
@@ -610,14 +630,22 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
         throw new Error(`Tipo de template não suportado: ${template.type}`);
     }
 
-    const postgresJobId = job.data.jobId || job.id;
     console.log(`💾 Salvando messageId no job: ${messageId} (PostgreSQL jobId: ${postgresJobId}, Bull job.id: ${job.id})`);
 
-    // Atualizar job no banco usando o ID do PostgreSQL
-    await pgPool.query(
-      `UPDATE dispatch_jobs SET status = 'sent', message_id = $1, sent_at = CURRENT_TIMESTAMP WHERE id = $2`,
+    // Atualizar job no banco usando o ID do PostgreSQL (com verificação para evitar duplicação)
+    const updateResult = await pgPool.query(
+      `UPDATE dispatch_jobs 
+       SET status = 'sent', message_id = $1, sent_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 AND status = 'pending' 
+       RETURNING id`,
       [messageId, postgresJobId]
     );
+
+    // Se nenhuma linha foi atualizada, significa que o job já foi processado
+    if (updateResult.rows.length === 0) {
+      console.log(`⚠️ Job ${postgresJobId} já foi processado anteriormente. Pulando atualização.`);
+      return;
+    }
 
     // Atualizar estatísticas do disparo
     await DispatchService.updateStats(dispatchId, job.data.userId, {
@@ -743,7 +771,6 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
     }
 
     // Atualizar job usando o ID do PostgreSQL
-    const postgresJobId = job.data.jobId || job.id;
     await pgPool.query(
       `UPDATE dispatch_jobs SET status = $1, error_message = $2 WHERE id = $3`,
       [jobStatus, errorMessage, postgresJobId]
@@ -754,13 +781,15 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
       await DispatchService.updateStats(dispatchId, job.data.userId, {
         invalid: 1,
       });
+      // Para números inválidos, não fazer throw - já sabemos que não existe, não adianta tentar novamente
+      return;
     } else {
       await DispatchService.updateStats(dispatchId, job.data.userId, {
         failed: 1,
       });
+      // Para outros erros, fazer throw para que o Bull possa tentar novamente
+      throw error;
     }
-
-    throw error;
   }
 };
 

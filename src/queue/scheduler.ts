@@ -79,6 +79,18 @@ const calculateNextAllowedTime = (schedule: DispatchSchedule): Date => {
 export const createDispatchJobs = async (dispatchId: string): Promise<void> => {
   // Buscar disparo (buscar sem filtro de userId para scheduler)
   const { pgPool } = await import('../config/databases');
+  
+  // Verificar se já existem jobs para este disparo (evitar duplicação)
+  const existingJobsCheck = await pgPool.query(
+    `SELECT COUNT(*) as count FROM dispatch_jobs WHERE dispatch_id = $1`,
+    [dispatchId]
+  );
+
+  if (parseInt(existingJobsCheck.rows[0].count) > 0) {
+    console.log(`⚠️ Jobs já existem para o disparo ${dispatchId}. Não criando novos jobs para evitar duplicação.`);
+    return;
+  }
+
   const result = await pgPool.query(
     `SELECT * FROM dispatches WHERE id = $1`,
     [dispatchId]
