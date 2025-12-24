@@ -16,6 +16,7 @@ import {
   createNotFoundError,
   handleControllerError,
 } from '../utils/errorHelpers';
+import { emitGroupsUpdate } from '../socket/socketServer';
 
 export interface GroupParticipant {
   id: string;
@@ -176,6 +177,13 @@ export const leaveGroup = async (
         }
       );
 
+      // Emitir evento via WebSocket
+      try {
+        emitGroupsUpdate(userId, instanceId);
+      } catch (socketError) {
+        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+      }
+
       res.status(200).json({
         status: 'success',
         message: 'Saiu do grupo com sucesso',
@@ -333,6 +341,13 @@ export const createGroup = async (
         }
       );
 
+      // Emitir evento via WebSocket
+      try {
+        emitGroupsUpdate(userId, instanceId);
+      } catch (socketError) {
+        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+      }
+
       res.status(201).json({
         status: 'success',
         message: 'Grupo criado com sucesso',
@@ -414,6 +429,13 @@ export const updateGroupPicture = async (
         }
       );
 
+      // Emitir evento via WebSocket
+      try {
+        emitGroupsUpdate(userId, instanceId);
+      } catch (socketError) {
+        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+      }
+
       res.status(200).json({
         status: 'success',
         message: 'Imagem do grupo atualizada com sucesso',
@@ -482,6 +504,13 @@ export const updateGroupSubject = async (
         }
       );
 
+      // Emitir evento via WebSocket
+      try {
+        emitGroupsUpdate(userId, instanceId);
+      } catch (socketError) {
+        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+      }
+
       res.status(200).json({
         status: 'success',
         message: 'Nome do grupo atualizado com sucesso',
@@ -544,6 +573,13 @@ export const updateGroupDescription = async (
           description: description?.trim() || '',
         }
       );
+
+      // Emitir evento via WebSocket
+      try {
+        emitGroupsUpdate(userId, instanceId);
+      } catch (socketError) {
+        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+      }
 
       res.status(200).json({
         status: 'success',
@@ -672,6 +708,13 @@ export const updateGroupSettings = async (
       `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
       { action }
     );
+
+    // Emitir evento via WebSocket
+    try {
+      emitGroupsUpdate(userId, instanceId);
+    } catch (socketError) {
+      console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
+    }
 
     res.status(200).json({
       status: 'success',

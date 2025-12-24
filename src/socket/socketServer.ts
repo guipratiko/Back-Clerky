@@ -161,6 +161,22 @@ export const emitDispatchUpdate = (userId: string, dispatch: any): void => {
   });
 };
 
+/**
+ * Emitir evento de atualização de grupos para o usuário
+ */
+export const emitGroupsUpdate = (userId: string, instanceId: string): void => {
+  if (!io) {
+    return;
+  }
+
+  const userIdStr = userId.toString();
+  console.log(`📤 Emitindo atualização de grupos para usuário ${userIdStr} - instância ${instanceId}`);
+  
+  io.to(userIdStr).emit('groups-updated', {
+    instanceId: instanceId,
+  });
+};
+
 // Função para verificar status de todas as instâncias de um usuário periodicamente
 export const startStatusChecker = () => {
   setInterval(async () => {
