@@ -91,7 +91,7 @@ export const getAllGroups = async (
     try {
       const response = await requestEvolutionAPI(
         'GET',
-        `/group/fetchAllGroups/${encodeURIComponent(instance.instanceName)}`
+        `/group/fetchAllGroups/${encodeURIComponent(instance.instanceName)}?getParticipants=true`
       );
 
       // Mapear grupos para o formato esperado
