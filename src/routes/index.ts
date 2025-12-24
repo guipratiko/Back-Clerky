@@ -7,6 +7,7 @@ import dispatchRoutes from './dispatch.routes';
 import workflowRoutes from './workflow.routes';
 import googleRoutes from './google.routes';
 import aiAgentRoutes from './aiAgent.routes';
+import groupRoutes from './group.routes';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use('/dispatches', dispatchRoutes);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);
+router.use('/groups', groupRoutes);
 
 export default router;
 
