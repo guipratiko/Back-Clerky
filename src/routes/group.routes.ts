@@ -10,7 +10,6 @@ import {
   updateGroupSubject,
   updateGroupDescription,
   getInviteCode,
-  updateGroupSettings,
   mentionEveryone,
 } from '../controllers/groupController';
 
@@ -27,7 +26,6 @@ router.post('/leave', leaveGroup);
 router.post('/update-picture', uploadGroupImage, updateGroupPicture);
 router.post('/update-subject', updateGroupSubject);
 router.post('/update-description', updateGroupDescription);
-router.post('/update-settings', updateGroupSettings);
 router.post('/mention-everyone', mentionEveryone);
 
 export default router;
