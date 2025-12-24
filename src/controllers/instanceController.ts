@@ -9,6 +9,8 @@ import { validateAndConvertUserId } from '../utils/helpers';
 import { WEBHOOK_CONFIG, EVOLUTION_CONFIG } from '../config/constants';
 import { createValidationError, createNotFoundError, handleControllerError } from '../utils/errorHelpers';
 import { formatInstanceResponse } from '../utils/instanceFormatters';
+import { pgPool } from '../config/databases';
+import { redisClient } from '../config/databases';
 
 interface CreateInstanceBody {
   name: string; // Nome escolhido pelo usuário
@@ -337,7 +339,7 @@ export const updateInstanceSettings = async (
 };
 
 /**
- * Deleta uma instância
+ * Deleta uma instância e todos os dados relacionados
  */
 export const deleteInstance = async (
   req: AuthRequest,
@@ -348,6 +350,10 @@ export const deleteInstance = async (
     const userId = req.user?.id;
     const { id } = req.params;
 
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
     const userObjectId = validateAndConvertUserId(userId);
 
     const instance = await Instance.findOne({ _id: id, userId: userObjectId });
@@ -356,20 +362,104 @@ export const deleteInstance = async (
       return next(createNotFoundError('Instância'));
     }
 
-    // Deletar instância na Evolution API
+    const instanceId = id.toString();
+
+    console.log(`🗑️  Iniciando exclusão da instância ${instanceId} e todos os dados relacionados...`);
+
+    // 1. Deletar dados do PostgreSQL relacionados à instância
     try {
-      await requestEvolutionAPI('DELETE', `/instance/delete/${encodeURIComponent(instance.instanceName)}`);
-    } catch (apiError: any) {
-      // Log do erro mas continua deletando do banco
-      console.error('Erro ao deletar instância na Evolution API:', apiError.message);
+      const client = await pgPool.connect();
+      
+      try {
+        // Deletar em ordem para respeitar foreign keys
+        // Ordem: deletar tabelas dependentes primeiro, depois as principais
+        
+        // 1. dispatch_jobs (depende de dispatches - será deletado via CASCADE, mas deletamos diretamente por segurança)
+        await client.query('DELETE FROM dispatch_jobs WHERE dispatch_id IN (SELECT id FROM dispatches WHERE instance_id = $1)', [instanceId]);
+        
+        // 2. dispatches
+        await client.query('DELETE FROM dispatches WHERE instance_id = $1', [instanceId]);
+        
+        // 3. workflow_contacts (depende de workflows - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)
+        await client.query('DELETE FROM workflow_contacts WHERE instance_id = $1', [instanceId]);
+        
+        // 4. openai_memory (depende de workflows - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)
+        await client.query('DELETE FROM openai_memory WHERE instance_id = $1', [instanceId]);
+        
+        // 5. workflows
+        await client.query('DELETE FROM workflows WHERE instance_id = $1', [instanceId]);
+        
+        // 6. ai_agents
+        await client.query('DELETE FROM ai_agents WHERE instance_id = $1', [instanceId]);
+        
+        // 7. messages (depende de contacts - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)
+        await client.query('DELETE FROM messages WHERE instance_id = $1', [instanceId]);
+        
+        // 8. contacts (deletar por último, pois messages depende dele)
+        await client.query('DELETE FROM contacts WHERE instance_id = $1', [instanceId]);
+        
+        console.log(`✅ Dados do PostgreSQL deletados para instância ${instanceId}`);
+      } finally {
+        client.release();
+      }
+    } catch (pgError: any) {
+      console.error('❌ Erro ao deletar dados do PostgreSQL:', pgError.message);
+      // Continuar mesmo se houver erro no PostgreSQL
     }
 
-    // Deletar do banco de dados
+    // 2. Deletar dados do Redis relacionados à instância
+    try {
+      // Deletar memórias de AI agents
+      const memoryPattern = `ai_agent:memory:${userId}:${instanceId}:*`;
+      const memoryKeys = await redisClient.keys(memoryPattern);
+      if (memoryKeys.length > 0) {
+        await redisClient.del(...memoryKeys);
+        console.log(`✅ ${memoryKeys.length} chave(s) de memória de AI agent deletada(s) do Redis`);
+      }
+
+      // Deletar cache de grupos
+      const groupsCacheKey = `groups:${instance.instanceName}`;
+      await redisClient.del(groupsCacheKey);
+      console.log(`✅ Cache de grupos deletado do Redis`);
+
+      // Deletar qualquer outro cache relacionado (se houver)
+      const allInstanceKeys = await redisClient.keys(`*:${instanceId}*`);
+      const allInstanceNameKeys = await redisClient.keys(`*:${instance.instanceName}*`);
+      const allKeysToDelete = [...new Set([...allInstanceKeys, ...allInstanceNameKeys])];
+      
+      if (allKeysToDelete.length > 0) {
+        await redisClient.del(...allKeysToDelete);
+        console.log(`✅ ${allKeysToDelete.length} chave(s) adicional(is) deletada(s) do Redis`);
+      }
+    } catch (redisError: any) {
+      console.error('❌ Erro ao deletar dados do Redis:', redisError.message);
+      // Continuar mesmo se houver erro no Redis
+    }
+
+    // 3. Deletar instância na Evolution API
+    try {
+      await requestEvolutionAPI('DELETE', `/instance/delete/${encodeURIComponent(instance.instanceName)}`);
+      console.log(`✅ Instância deletada na Evolution API`);
+    } catch (apiError: any) {
+      // Log do erro mas continua deletando do banco
+      console.error('⚠️  Erro ao deletar instância na Evolution API:', apiError.message);
+    }
+
+    // 4. Deletar instância do MongoDB (por último)
     await Instance.deleteOne({ _id: id, userId: userObjectId });
+    console.log(`✅ Instância deletada do MongoDB`);
+
+    // 5. Emitir evento WebSocket para atualizar frontend
+    try {
+      const io = getIO();
+      io.to(userId).emit('instance-deleted', { instanceId: id });
+    } catch (wsError) {
+      console.error('⚠️  Erro ao emitir evento WebSocket:', wsError);
+    }
 
     res.status(200).json({
       status: 'success',
-      message: 'Instância deletada com sucesso',
+      message: 'Instância e todos os dados relacionados foram deletados com sucesso',
     });
   } catch (error: unknown) {
     return next(handleControllerError(error, 'Erro ao deletar instância'));

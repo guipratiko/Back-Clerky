@@ -32,6 +32,7 @@ export interface DispatchJobData {
     deleteDelay?: number;
     deleteDelayUnit?: 'seconds' | 'minutes' | 'hours';
   };
+  jobId: string; // ID do job no PostgreSQL (dispatch_jobs.id)
 }
 
 /**
@@ -609,12 +610,13 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
         throw new Error(`Tipo de template não suportado: ${template.type}`);
     }
 
-    console.log(`💾 Salvando messageId no job: ${messageId} (job: ${job.id})`);
+    const postgresJobId = job.data.jobId || job.id;
+    console.log(`💾 Salvando messageId no job: ${messageId} (PostgreSQL jobId: ${postgresJobId}, Bull job.id: ${job.id})`);
 
-    // Atualizar job no banco
+    // Atualizar job no banco usando o ID do PostgreSQL
     await pgPool.query(
       `UPDATE dispatch_jobs SET status = 'sent', message_id = $1, sent_at = CURRENT_TIMESTAMP WHERE id = $2`,
-      [messageId, job.id]
+      [messageId, postgresJobId]
     );
 
     // Atualizar estatísticas do disparo
@@ -740,10 +742,11 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
       console.error(`❌ Erro ao processar job:`, errorMessage);
     }
 
-    // Atualizar job
+    // Atualizar job usando o ID do PostgreSQL
+    const postgresJobId = job.data.jobId || job.id;
     await pgPool.query(
       `UPDATE dispatch_jobs SET status = $1, error_message = $2 WHERE id = $3`,
-      [jobStatus, errorMessage, job.id]
+      [jobStatus, errorMessage, postgresJobId]
     );
 
     // Atualizar estatísticas

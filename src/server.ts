@@ -82,10 +82,13 @@ initializeSocket(httpServer);
 // Iniciar verificador de status periódico
 startStatusChecker();
 
-// Inicializar scheduler de disparos
+// Inicializar scheduler de disparos (aguardar para retomar disparos em execução)
 import { startScheduler } from './queue/scheduler';
-startScheduler();
-console.log('✅ Scheduler de disparos iniciado');
+startScheduler().then(() => {
+  console.log('✅ Scheduler de disparos iniciado');
+}).catch((error) => {
+  console.error('❌ Erro ao iniciar scheduler de disparos:', error);
+});
 
 // Iniciar servidor
 httpServer.listen(PORT, () => {
