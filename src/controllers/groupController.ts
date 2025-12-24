@@ -109,8 +109,9 @@ export const getAllGroups = async (
           : [],
         pictureUrl: group.pictureUrl || group.picture || group.groupPicture || undefined,
         settings: {
-          announcement: group.announcement !== undefined ? group.announcement : (group.settings?.announcement !== undefined ? group.settings.announcement : false),
-          locked: group.locked !== undefined ? group.locked : (group.settings?.locked !== undefined ? group.settings.locked : false),
+          // Usar valores explícitos da API, não defaults
+          announcement: group.announcement !== undefined ? Boolean(group.announcement) : (group.settings?.announcement !== undefined ? Boolean(group.settings.announcement) : false),
+          locked: group.locked !== undefined ? Boolean(group.locked) : (group.settings?.locked !== undefined ? Boolean(group.settings.locked) : false),
         },
       }));
 
