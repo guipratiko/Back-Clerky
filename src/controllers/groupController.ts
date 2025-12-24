@@ -668,13 +668,18 @@ export const updateGroupSettings = async (
       return next(createValidationError('Instância não pertence ao usuário'));
     }
 
+    // Normalizar valores booleanos (garantir que são true/false, não undefined)
+    const announcementValue = announcement === undefined ? undefined : Boolean(announcement);
+    const lockedValue = locked === undefined ? undefined : Boolean(locked);
+
     // Atualizar configurações na Evolution API
     // A API aceita apenas uma ação por vez, então precisamos fazer duas chamadas se necessário
-    const results: any[] = [];
+    const results: Array<{ setting: string; success: boolean; error?: string }> = [];
 
-    if (announcement !== undefined) {
+    // Atualizar announcement apenas se foi fornecido explicitamente
+    if (announcementValue !== undefined) {
       try {
-        const action = announcement ? 'announcement' : 'not_announcement';
+        const action = announcementValue ? 'announcement' : 'not_announcement';
         await requestEvolutionAPI(
           'POST',
           `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
@@ -684,13 +689,15 @@ export const updateGroupSettings = async (
         );
         results.push({ setting: 'announcement', success: true });
       } catch (error: any) {
+        console.error('Erro ao atualizar announcement:', error);
         results.push({ setting: 'announcement', success: false, error: error.message });
       }
     }
 
-    if (locked !== undefined) {
+    // Atualizar locked apenas se foi fornecido explicitamente
+    if (lockedValue !== undefined) {
       try {
-        const action = locked ? 'locked' : 'unlocked';
+        const action = lockedValue ? 'locked' : 'unlocked';
         await requestEvolutionAPI(
           'POST',
           `/group/updateSetting/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`,
@@ -700,6 +707,7 @@ export const updateGroupSettings = async (
         );
         results.push({ setting: 'locked', success: true });
       } catch (error: any) {
+        console.error('Erro ao atualizar locked:', error);
         results.push({ setting: 'locked', success: false, error: error.message });
       }
     }
