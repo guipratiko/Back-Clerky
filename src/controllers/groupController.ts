@@ -107,10 +107,10 @@ export const getAllGroups = async (
               isAdmin: p.isAdmin || p.admin || false,
             }))
           : [],
-        pictureUrl: group.pictureUrl || group.picture || undefined,
+        pictureUrl: group.pictureUrl || group.picture || group.groupPicture || undefined,
         settings: {
-          announcement: group.announcement !== undefined ? group.announcement : group.settings?.announcement,
-          locked: group.locked !== undefined ? group.locked : group.settings?.locked,
+          announcement: group.announcement !== undefined ? group.announcement : (group.settings?.announcement !== undefined ? group.settings.announcement : false),
+          locked: group.locked !== undefined ? group.locked : (group.settings?.locked !== undefined ? group.settings.locked : false),
         },
       }));
 
