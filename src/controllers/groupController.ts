@@ -253,11 +253,11 @@ export const validateParticipants = async (
     res.status(200).json({
       status: 'success',
       valid: valid.map((r) => ({
-        phone: r.phone,
+        phone: r.number,
         name: r.name,
       })),
       invalid: invalid.map((r) => ({
-        phone: r.phone,
+        phone: r.number,
         reason: 'Número não encontrado no WhatsApp',
       })),
       validCount: valid.length,
