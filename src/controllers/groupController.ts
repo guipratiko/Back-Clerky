@@ -4,7 +4,7 @@
 
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import Instance from '../models/Instance';
+import Instance, { IInstance } from '../models/Instance';
 import { requestEvolutionAPI } from '../utils/evolutionAPI';
 import { uploadFileToService } from '../utils/mediaService';
 import { normalizePhoneList } from '../utils/numberNormalizer';
@@ -18,6 +18,48 @@ import {
 } from '../utils/errorHelpers';
 import { emitGroupsUpdate } from '../socket/socketServer';
 import { redisClient } from '../config/databases';
+
+/**
+ * Helper para buscar e validar instância
+ * Retorna a instância se válida, ou chama next() com erro e retorna null
+ */
+async function getAndValidateInstance(
+  instanceId: string,
+  userId: string,
+  next: NextFunction
+): Promise<IInstance | null> {
+  const instance = await Instance.findById(instanceId);
+  
+  if (!instance) {
+    next(createNotFoundError('Instância'));
+    return null;
+  }
+
+  if (instance.userId.toString() !== userId) {
+    next(createValidationError('Instância não pertence ao usuário'));
+    return null;
+  }
+
+  return instance;
+}
+
+/**
+ * Helper para invalidar cache de grupos e emitir atualização via WebSocket
+ */
+async function invalidateGroupsCacheAndEmitUpdate(
+  instanceName: string,
+  userId: string,
+  instanceId: string
+): Promise<void> {
+  try {
+    const cacheKey = `groups:${instanceName}`;
+    await redisClient.del(cacheKey);
+    emitGroupsUpdate(userId, instanceId);
+  } catch (socketError) {
+    console.error('❌ Erro ao invalidar cache e emitir evento WebSocket de grupos:', socketError);
+    // Não lançar erro, apenas logar, pois é uma operação auxiliar
+  }
+}
 
 export interface GroupParticipant {
   id: string;
@@ -75,17 +117,9 @@ export const getAllGroups = async (
       return next(createValidationError('ID da instância é obrigatório'));
     }
 
-    // Buscar instância no banco
-    const instance = await Instance.findById(instanceId);
-
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    // Verificar se a instância pertence ao usuário
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Cache key
     const cacheKey = `groups:${instance.instanceName}`;
@@ -217,17 +251,9 @@ export const leaveGroup = async (
       return next(createValidationError('ID do grupo é obrigatório'));
     }
 
-    // Buscar instância no banco
-    const instance = await Instance.findById(instanceId);
-
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    // Verificar se a instância pertence ao usuário
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Sair do grupo na Evolution API
     try {
@@ -240,13 +266,7 @@ export const leaveGroup = async (
       );
 
       // Invalidar cache e emitir evento via WebSocket
-      try {
-        const cacheKey = `groups:${instance.instanceName}`;
-        await redisClient.del(cacheKey);
-        emitGroupsUpdate(userId, instanceId);
-      } catch (socketError) {
-        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-      }
+      await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
       res.status(200).json({
         status: 'success',
@@ -299,15 +319,9 @@ export const validateParticipants = async (
       return next(createValidationError('Máximo de 1024 participantes permitidos'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Normalizar números
     const phoneNumbers = participants.map((p: any) => (typeof p === 'string' ? p : p.phone || p.id)).filter(Boolean);
@@ -375,15 +389,9 @@ export const createGroup = async (
       return next(createValidationError('Máximo de 1024 participantes permitidos'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Normalizar números dos participantes
     const phoneNumbers = participants.map((p: any) => (typeof p === 'string' ? p : p.phone || p.id)).filter(Boolean);
@@ -406,13 +414,7 @@ export const createGroup = async (
       );
 
       // Invalidar cache e emitir evento via WebSocket
-      try {
-        const cacheKey = `groups:${instance.instanceName}`;
-        await redisClient.del(cacheKey);
-        emitGroupsUpdate(userId, instanceId);
-      } catch (socketError) {
-        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-      }
+      await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
       res.status(201).json({
         status: 'success',
@@ -467,15 +469,9 @@ export const updateGroupPicture = async (
       return next(createValidationError('Imagem é obrigatória'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Fazer upload da imagem para MidiaService
     const fileName = file.originalname || `group-picture-${Date.now()}.${file.mimetype.split('/')[1]}`;
@@ -496,13 +492,7 @@ export const updateGroupPicture = async (
       );
 
       // Invalidar cache e emitir evento via WebSocket
-      try {
-        const cacheKey = `groups:${instance.instanceName}`;
-        await redisClient.del(cacheKey);
-        emitGroupsUpdate(userId, instanceId);
-      } catch (socketError) {
-        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-      }
+      await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
       res.status(200).json({
         status: 'success',
@@ -552,15 +542,9 @@ export const updateGroupSubject = async (
       return next(createValidationError('Nome do grupo é obrigatório'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Atualizar nome do grupo na Evolution API
     try {
@@ -573,13 +557,7 @@ export const updateGroupSubject = async (
       );
 
       // Invalidar cache e emitir evento via WebSocket
-      try {
-        const cacheKey = `groups:${instance.instanceName}`;
-        await redisClient.del(cacheKey);
-        emitGroupsUpdate(userId, instanceId);
-      } catch (socketError) {
-        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-      }
+      await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
       res.status(200).json({
         status: 'success',
@@ -624,15 +602,9 @@ export const updateGroupDescription = async (
       return next(createValidationError('ID do grupo é obrigatório'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Atualizar descrição do grupo na Evolution API
     try {
@@ -645,13 +617,7 @@ export const updateGroupDescription = async (
       );
 
       // Invalidar cache e emitir evento via WebSocket
-      try {
-        const cacheKey = `groups:${instance.instanceName}`;
-        await redisClient.del(cacheKey);
-        emitGroupsUpdate(userId, instanceId);
-      } catch (socketError) {
-        console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-      }
+      await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
       res.status(200).json({
         status: 'success',
@@ -696,15 +662,9 @@ export const getInviteCode = async (
       return next(createValidationError('ID do grupo é obrigatório'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Obter código de convite na Evolution API
     try {
@@ -782,13 +742,7 @@ export const updateGroupSettings = async (
     );
 
     // Invalidar cache e emitir evento via WebSocket
-    try {
-      const cacheKey = `groups:${instance.instanceName}`;
-      await redisClient.del(cacheKey);
-      emitGroupsUpdate(userId, instanceId);
-    } catch (socketError) {
-      console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
-    }
+    await invalidateGroupsCacheAndEmitUpdate(instance.instanceName, userId, instanceId);
 
     res.status(200).json({
       status: 'success',
@@ -828,15 +782,9 @@ export const mentionEveryone = async (
       return next(createValidationError('Texto da mensagem é obrigatório'));
     }
 
-    // Buscar instância
-    const instance = await Instance.findById(instanceId);
-    if (!instance) {
-      return next(createNotFoundError('Instância'));
-    }
-
-    if (instance.userId.toString() !== userId) {
-      return next(createValidationError('Instância não pertence ao usuário'));
-    }
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
 
     // Enviar mensagem mencionando todos via Evolution API
     try {

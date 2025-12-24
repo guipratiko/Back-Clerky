@@ -8,6 +8,7 @@ import workflowRoutes from './workflow.routes';
 import googleRoutes from './google.routes';
 import aiAgentRoutes from './aiAgent.routes';
 import groupRoutes from './group.routes';
+import dashboardRoutes from './dashboard.routes';
 
 const router = Router();
 
@@ -21,6 +22,7 @@ router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);
 router.use('/groups', groupRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;
 
