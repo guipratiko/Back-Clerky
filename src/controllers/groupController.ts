@@ -107,6 +107,11 @@ export const getAllGroups = async (
               isAdmin: p.isAdmin || p.admin || false,
             }))
           : [],
+        pictureUrl: group.pictureUrl || group.picture || undefined,
+        settings: {
+          announcement: group.announcement !== undefined ? group.announcement : group.settings?.announcement,
+          locked: group.locked !== undefined ? group.locked : group.settings?.locked,
+        },
       }));
 
       res.status(200).json({
@@ -715,6 +720,75 @@ export const updateGroupSettings = async (
     });
   } catch (error: unknown) {
     return next(handleControllerError(error, 'Erro ao atualizar configurações do grupo'));
+  }
+};
+
+/**
+ * Mencionar todos os participantes do grupo
+ * POST /api/groups/mention-everyone
+ */
+export const mentionEveryone = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { instanceId, groupId, text } = req.body;
+
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    if (!instanceId) {
+      return next(createValidationError('ID da instância é obrigatório'));
+    }
+
+    if (!groupId) {
+      return next(createValidationError('ID do grupo é obrigatório'));
+    }
+
+    if (!text || text.trim().length === 0) {
+      return next(createValidationError('Texto da mensagem é obrigatório'));
+    }
+
+    // Buscar instância
+    const instance = await Instance.findById(instanceId);
+    if (!instance) {
+      return next(createNotFoundError('Instância'));
+    }
+
+    if (instance.userId.toString() !== userId) {
+      return next(createValidationError('Instância não pertence ao usuário'));
+    }
+
+    // Enviar mensagem mencionando todos via Evolution API
+    try {
+      await requestEvolutionAPI(
+        'POST',
+        `/message/sendText/${encodeURIComponent(instance.instanceName)}`,
+        {
+          number: groupId,
+          text: text.trim(),
+          mentionsEveryOne: true,
+        }
+      );
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Mensagem enviada com sucesso',
+      });
+    } catch (evolutionError: any) {
+      console.error('Erro ao mencionar todos na Evolution API:', evolutionError);
+      return next(
+        handleControllerError(
+          evolutionError,
+          'Erro ao enviar mensagem. Verifique se você tem permissão no grupo.'
+        )
+      );
+    }
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao mencionar todos os participantes'));
   }
 };
 
