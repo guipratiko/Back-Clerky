@@ -17,6 +17,7 @@ import {
   handleControllerError,
 } from '../utils/errorHelpers';
 import { emitGroupsUpdate } from '../socket/socketServer';
+import { redisClient } from '../config/databases';
 
 export interface GroupParticipant {
   id: string;
@@ -86,6 +87,29 @@ export const getAllGroups = async (
       return next(createValidationError('Instância não pertence ao usuário'));
     }
 
+    // Cache key
+    const cacheKey = `groups:${instance.instanceName}`;
+    const CACHE_TTL = 30; // 30 segundos de cache
+
+    // Tentar buscar do cache primeiro
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        const cachedData = JSON.parse(cached);
+        console.log(`📦 Cache hit: ${cacheKey}`);
+        res.status(200).json({
+          status: 'success',
+          groups: cachedData.groups || [],
+          count: cachedData.count || 0,
+          cached: true,
+        });
+        return;
+      }
+    } catch (cacheError) {
+      console.error('Erro ao buscar cache de grupos:', cacheError);
+      // Continuar para buscar da API
+    }
+
     // Buscar grupos na Evolution API
     try {
       const response = await requestEvolutionAPI(
@@ -111,6 +135,15 @@ export const getAllGroups = async (
         locked: group.locked !== undefined ? Boolean(group.locked) : undefined,
       }));
 
+      // Salvar no cache
+      try {
+        await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify({ groups, count: groups.length }));
+        console.log(`💾 Cache salvo: ${cacheKey} (TTL: ${CACHE_TTL}s)`);
+      } catch (cacheError) {
+        console.error('Erro ao salvar cache de grupos:', cacheError);
+        // Continuar mesmo se o cache falhar
+      }
+
       res.status(200).json({
         status: 'success',
         groups,
@@ -118,7 +151,36 @@ export const getAllGroups = async (
       });
     } catch (evolutionError: any) {
       console.error('Erro ao buscar grupos na Evolution API:', evolutionError);
-      // Se a Evolution API retornar erro, retornar array vazio
+      
+      // Se for erro de rate limit, tentar retornar do cache mesmo que expirado
+      if (evolutionError.message?.includes('rate-overlimit') || 
+          evolutionError.response?.response?.message === 'rate-overlimit') {
+        try {
+          const cached = await redisClient.get(cacheKey);
+          if (cached) {
+            const cachedData = JSON.parse(cached);
+            console.log(`📦 Retornando cache devido a rate limit: ${cacheKey}`);
+            res.status(200).json({
+              status: 'success',
+              groups: cachedData.groups || [],
+              count: cachedData.count || 0,
+              cached: true,
+            });
+            return;
+          }
+        } catch (cacheError) {
+          // Se não conseguir buscar do cache, retornar erro
+        }
+        
+        return next(
+          handleControllerError(
+            evolutionError,
+            'Limite de requisições excedido. Aguarde alguns segundos e tente novamente.'
+          )
+        );
+      }
+      
+      // Para outros erros, retornar array vazio
       res.status(200).json({
         status: 'success',
         groups: [],
@@ -177,8 +239,10 @@ export const leaveGroup = async (
         }
       );
 
-      // Emitir evento via WebSocket
+      // Invalidar cache e emitir evento via WebSocket
       try {
+        const cacheKey = `groups:${instance.instanceName}`;
+        await redisClient.del(cacheKey);
         emitGroupsUpdate(userId, instanceId);
       } catch (socketError) {
         console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
@@ -341,8 +405,10 @@ export const createGroup = async (
         }
       );
 
-      // Emitir evento via WebSocket
+      // Invalidar cache e emitir evento via WebSocket
       try {
+        const cacheKey = `groups:${instance.instanceName}`;
+        await redisClient.del(cacheKey);
         emitGroupsUpdate(userId, instanceId);
       } catch (socketError) {
         console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
@@ -429,8 +495,10 @@ export const updateGroupPicture = async (
         }
       );
 
-      // Emitir evento via WebSocket
+      // Invalidar cache e emitir evento via WebSocket
       try {
+        const cacheKey = `groups:${instance.instanceName}`;
+        await redisClient.del(cacheKey);
         emitGroupsUpdate(userId, instanceId);
       } catch (socketError) {
         console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
@@ -504,8 +572,10 @@ export const updateGroupSubject = async (
         }
       );
 
-      // Emitir evento via WebSocket
+      // Invalidar cache e emitir evento via WebSocket
       try {
+        const cacheKey = `groups:${instance.instanceName}`;
+        await redisClient.del(cacheKey);
         emitGroupsUpdate(userId, instanceId);
       } catch (socketError) {
         console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
@@ -574,8 +644,10 @@ export const updateGroupDescription = async (
         }
       );
 
-      // Emitir evento via WebSocket
+      // Invalidar cache e emitir evento via WebSocket
       try {
+        const cacheKey = `groups:${instance.instanceName}`;
+        await redisClient.del(cacheKey);
         emitGroupsUpdate(userId, instanceId);
       } catch (socketError) {
         console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
@@ -709,8 +781,10 @@ export const updateGroupSettings = async (
       { action }
     );
 
-    // Emitir evento via WebSocket
+    // Invalidar cache e emitir evento via WebSocket
     try {
+      const cacheKey = `groups:${instance.instanceName}`;
+      await redisClient.del(cacheKey);
       emitGroupsUpdate(userId, instanceId);
     } catch (socketError) {
       console.error('❌ Erro ao emitir evento WebSocket de grupos:', socketError);
