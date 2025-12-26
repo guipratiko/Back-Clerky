@@ -13,6 +13,7 @@ import {
   createDispatch,
   getDispatches,
   getDispatch,
+  updateDispatch,
   startDispatch,
   pauseDispatch,
   resumeDispatch,
@@ -47,6 +48,7 @@ router.post('/process-input', processInput);
 router.post('/', createDispatch);
 router.get('/', getDispatches);
 router.get('/:id', getDispatch);
+router.put('/:id', updateDispatch);
 router.post('/:id/start', startDispatch);
 router.post('/:id/pause', pauseDispatch);
 router.post('/:id/resume', resumeDispatch);
