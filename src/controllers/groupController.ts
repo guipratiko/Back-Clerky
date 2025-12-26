@@ -674,12 +674,17 @@ export const getGroupParticipants = async (
       );
 
       // Mapear participantes para formato padronizado
-      const participants = (response.data?.participants || response.data || []).map((p: any) => ({
-        id: p.id || p.jid || p.participant || '',
-        name: p.name || p.pushName || p.notify || '',
-        phone: extractPhoneFromJid(p.id || p.jid || p.participant || ''),
-        isAdmin: p.isAdmin || p.admin || false,
-      }));
+      const participants = (response.data?.participants || response.data || []).map((p: any) => {
+        // Priorizar phoneNumber se disponível, senão extrair do JID
+        const phone = p.phoneNumber || p.phone || extractPhoneFromJid(p.id || p.jid || p.participant || '');
+        
+        return {
+          id: p.id || p.jid || p.participant || '',
+          name: p.name || p.pushName || p.notify || '',
+          phone: phone,
+          isAdmin: p.isAdmin || p.admin || false,
+        };
+      });
 
       res.status(200).json({
         status: 'success',
