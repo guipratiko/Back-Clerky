@@ -676,12 +676,14 @@ export const getGroupParticipants = async (
       // Mapear participantes para formato padronizado
       const participants = (response.data?.participants || response.data || []).map((p: any) => {
         // Priorizar phoneNumber se disponível, senão extrair do JID
-        const phone = p.phoneNumber || p.phone || extractPhoneFromJid(p.id || p.jid || p.participant || '');
+        const rawPhone = p.phoneNumber || p.phone || extractPhoneFromJid(p.id || p.jid || p.participant || '');
+        // Formatar o número de telefone no padrão brasileiro
+        const formattedPhone = formatBrazilianPhone(rawPhone);
         
         return {
           id: p.id || p.jid || p.participant || '',
           name: p.name || p.pushName || p.notify || '',
-          phone: phone,
+          phone: formattedPhone,
           isAdmin: p.isAdmin || p.admin || false,
         };
       });
@@ -707,6 +709,41 @@ function extractPhoneFromJid(jid: string): string {
   // Formato: 556298448536@s.whatsapp.net ou 556298448536@lid
   const match = jid.match(/^(\d+)@/);
   return match ? match[1] : jid;
+}
+
+/**
+ * Helper para formatar número de telefone brasileiro
+ * Remove DDI 55 e formata no padrão: XX X XXXX-XXXX
+ * Exemplo: 556298448536 -> 62 9 9844-8536
+ */
+function formatBrazilianPhone(phone: string): string {
+  if (!phone) return '';
+  
+  // Remover caracteres não numéricos
+  let cleanPhone = phone.replace(/\D/g, '');
+  
+  // Remover DDI 55 (Brasil) se presente
+  if (cleanPhone.startsWith('55') && cleanPhone.length > 10) {
+    cleanPhone = cleanPhone.substring(2);
+  }
+  
+  // Validar se tem pelo menos 10 dígitos (DDD + número)
+  if (cleanPhone.length < 10) {
+    return phone; // Retornar original se não tiver formato válido
+  }
+  
+  // Formatar no padrão brasileiro: XX X XXXX-XXXX
+  // DDD (2 dígitos) + 9º dígito (1 dígito) + número (8 dígitos)
+  if (cleanPhone.length === 11) {
+    // Número com 9º dígito: 6298448536 -> 62 9 9844-8536
+    return `${cleanPhone.substring(0, 2)} ${cleanPhone.substring(2, 3)} ${cleanPhone.substring(3, 7)}-${cleanPhone.substring(7)}`;
+  } else if (cleanPhone.length === 10) {
+    // Número sem 9º dígito: 6298448536 -> 62 9844-8536
+    return `${cleanPhone.substring(0, 2)} ${cleanPhone.substring(2, 6)}-${cleanPhone.substring(6)}`;
+  }
+  
+  // Se não couber no padrão, retornar original
+  return phone;
 }
 
 /**
