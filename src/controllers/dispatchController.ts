@@ -504,6 +504,75 @@ export const pauseDispatch = async (
 };
 
 /**
+ * Atualizar disparo
+ * PUT /api/dispatches/:id
+ */
+export const updateDispatch = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    const { id } = req.params;
+    const { name, settings, schedule, defaultName } = req.body;
+
+    // Verificar se o disparo existe e pertence ao usuário
+    const dispatch = await DispatchService.getById(id, userId);
+    if (!dispatch) {
+      return next(createNotFoundError('Disparo'));
+    }
+
+    // Verificar se o disparo pode ser editado (não pode editar se estiver running ou completed)
+    if (dispatch.status === 'running') {
+      return next(createValidationError('Não é possível editar um disparo em execução. Pause o disparo primeiro.'));
+    }
+
+    if (dispatch.status === 'completed') {
+      return next(createValidationError('Não é possível editar um disparo já concluído'));
+    }
+
+    // Preparar dados de atualização
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (settings !== undefined) updateData.settings = settings;
+    if (schedule !== undefined) updateData.schedule = schedule;
+    if (defaultName !== undefined) updateData.defaultName = defaultName;
+
+    const updatedDispatch = await DispatchService.update(id, userId, updateData);
+
+    if (!updatedDispatch) {
+      return next(createNotFoundError('Disparo'));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      dispatch: {
+        id: updatedDispatch.id,
+        name: updatedDispatch.name,
+        status: updatedDispatch.status,
+        instanceId: updatedDispatch.instanceId,
+        templateId: updatedDispatch.templateId,
+        settings: updatedDispatch.settings,
+        schedule: updatedDispatch.schedule,
+        stats: updatedDispatch.stats,
+        defaultName: updatedDispatch.defaultName,
+        createdAt: updatedDispatch.createdAt,
+        startedAt: updatedDispatch.startedAt,
+        completedAt: updatedDispatch.completedAt,
+      },
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao atualizar disparo'));
+  }
+};
+
+/**
  * Retomar disparo
  * POST /api/dispatches/:id/resume
  */

@@ -1,5 +1,12 @@
+// Configurar timezone para São Paulo, Brasil (America/Sao_Paulo)
+process.env.TZ = 'America/Sao_Paulo';
+
 // Importar constants primeiro para carregar dotenv
 import { SERVER_CONFIG } from './config/constants';
+
+// Log do timezone configurado
+console.log('🕐 Timezone configurado:', Intl.DateTimeFormat().resolvedOptions().timeZone);
+console.log('🕐 Data/Hora atual (SP):', new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
 
 import express, { Express } from 'express';
 import { createServer } from 'http';

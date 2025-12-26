@@ -47,11 +47,12 @@ router.post('/process-input', processInput);
 // Rotas de Disparos
 router.post('/', createDispatch);
 router.get('/', getDispatches);
-router.get('/:id', getDispatch);
-router.put('/:id', updateDispatch);
+// Rotas específicas devem vir antes das rotas genéricas com :id
 router.post('/:id/start', startDispatch);
 router.post('/:id/pause', pauseDispatch);
 router.post('/:id/resume', resumeDispatch);
+router.get('/:id', getDispatch);
+router.put('/:id', updateDispatch);
 router.delete('/:id', deleteDispatch);
 
 export default router;

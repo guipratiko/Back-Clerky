@@ -1,0 +1,11 @@
+# Configuração de timezone para Docker/Easypanel
+# Este arquivo pode ser usado como referência para configurar timezone no container
+
+# Para usar no Dockerfile, adicione:
+# RUN apt-get update && apt-get install -y tzdata
+# ENV TZ=America/Sao_Paulo
+# RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Ou simplesmente defina a variável de ambiente:
+# ENV TZ=America/Sao_Paulo
+
