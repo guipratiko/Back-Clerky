@@ -638,6 +638,73 @@ export const updateGroupDescription = async (
 };
 
 /**
+ * Obter participantes do grupo
+ * GET /api/groups/participants?instanceId=xxx&groupId=xxx
+ */
+export const getGroupParticipants = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    const { instanceId, groupId } = req.query;
+
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    if (!instanceId || typeof instanceId !== 'string') {
+      return next(createValidationError('ID da instância é obrigatório'));
+    }
+
+    if (!groupId || typeof groupId !== 'string') {
+      return next(createValidationError('ID do grupo é obrigatório'));
+    }
+
+    // Buscar e validar instância
+    const instance = await getAndValidateInstance(instanceId, userId, next);
+    if (!instance) return;
+
+    // Buscar participantes na Evolution API
+    try {
+      const response = await requestEvolutionAPI(
+        'GET',
+        `/group/participants/${encodeURIComponent(instance.instanceName)}?groupJid=${encodeURIComponent(groupId)}`
+      );
+
+      // Mapear participantes para formato padronizado
+      const participants = (response.data?.participants || response.data || []).map((p: any) => ({
+        id: p.id || p.jid || p.participant || '',
+        name: p.name || p.pushName || p.notify || '',
+        phone: extractPhoneFromJid(p.id || p.jid || p.participant || ''),
+        isAdmin: p.isAdmin || p.admin || false,
+      }));
+
+      res.status(200).json({
+        status: 'success',
+        participants,
+      });
+    } catch (apiError: any) {
+      console.error('Erro ao buscar participantes na Evolution API:', apiError.message);
+      return next(handleControllerError(apiError, 'Erro ao buscar participantes do grupo'));
+    }
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao buscar participantes do grupo'));
+  }
+};
+
+/**
+ * Helper para extrair telefone do JID
+ */
+function extractPhoneFromJid(jid: string): string {
+  if (!jid) return '';
+  // Formato: 556298448536@s.whatsapp.net ou 556298448536@lid
+  const match = jid.match(/^(\d+)@/);
+  return match ? match[1] : jid;
+}
+
+/**
  * Obter código de convite do grupo
  * GET /api/groups/invite-code?instanceId=xxx&groupId=xxx
  */

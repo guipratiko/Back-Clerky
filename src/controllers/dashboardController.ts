@@ -53,8 +53,9 @@ export const getDashboardStats = async (
       AIAgentService.getByUserId(userId),
 
       // Contatos por coluna (com nome da coluna)
+      // Contar contatos únicos por telefone (evita contar o mesmo telefone em múltiplas instâncias)
       pgPool.query(
-        `SELECT c.column_id, COALESCE(col.name, 'Sem coluna') as column_name, COUNT(*) as count 
+        `SELECT c.column_id, COALESCE(col.name, 'Sem coluna') as column_name, COUNT(DISTINCT c.phone) as count 
          FROM contacts c 
          LEFT JOIN crm_columns col ON c.column_id = col.id AND col.user_id = $1
          WHERE c.user_id = $1 

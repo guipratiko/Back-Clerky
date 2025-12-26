@@ -10,6 +10,7 @@ import {
   updateGroupSubject,
   updateGroupDescription,
   getInviteCode,
+  getGroupParticipants,
   updateGroupSettings,
   mentionEveryone,
 } from '../controllers/groupController';
@@ -21,6 +22,7 @@ router.use(protect);
 
 router.get('/', getAllGroups);
 router.get('/invite-code', getInviteCode);
+router.get('/participants', getGroupParticipants);
 router.post('/validate-participants', validateParticipants);
 router.post('/create', createGroup);
 router.post('/leave', leaveGroup);
