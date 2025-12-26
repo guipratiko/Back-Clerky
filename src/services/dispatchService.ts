@@ -35,6 +35,7 @@ export interface DispatchSettings {
 }
 
 export interface DispatchSchedule {
+  startDate?: string; // Data de início (YYYY-MM-DD) - opcional, se não informado, inicia imediatamente
   startTime: string; // Horário de início (HH:mm)
   endTime: string; // Horário de pausa (HH:mm)
   suspendedDays: number[]; // Dias da semana suspensos (0=domingo, 6=sábado)
@@ -276,26 +277,76 @@ export class DispatchService {
   }
 
   /**
-   * Atualizar estatísticas de um disparo
+   * Atualizar estatísticas de um disparo (atômico usando SQL)
+   * Incrementa os valores ao invés de sobrescrever, evitando race conditions
    */
   static async updateStats(
     dispatchId: string,
     userId: string,
     stats: Partial<DispatchStats>
   ): Promise<Dispatch | null> {
-    // Buscar stats atuais
-    const current = await this.getById(dispatchId, userId);
-    if (!current) {
+    // Construir atualização SQL atômica que incrementa os valores
+    // Usar jsonb_set aninhado para atualizar múltiplos campos de uma vez
+    let statsExpression = `COALESCE(stats, '{"sent": 0, "failed": 0, "invalid": 0, "total": 0}'::jsonb)`;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    // Aplicar atualizações sequencialmente usando jsonb_set aninhado
+    if (stats.sent !== undefined) {
+      statsExpression = `jsonb_set(${statsExpression}, '{sent}', to_jsonb(COALESCE((${statsExpression}->>'sent')::int, 0) + $${paramIndex}::int))`;
+      params.push(stats.sent);
+      paramIndex++;
+    }
+    
+    if (stats.failed !== undefined) {
+      statsExpression = `jsonb_set(${statsExpression}, '{failed}', to_jsonb(COALESCE((${statsExpression}->>'failed')::int, 0) + $${paramIndex}::int))`;
+      params.push(stats.failed);
+      paramIndex++;
+    }
+    
+    if (stats.invalid !== undefined) {
+      statsExpression = `jsonb_set(${statsExpression}, '{invalid}', to_jsonb(COALESCE((${statsExpression}->>'invalid')::int, 0) + $${paramIndex}::int))`;
+      params.push(stats.invalid);
+      paramIndex++;
+    }
+    
+    if (stats.total !== undefined) {
+      statsExpression = `jsonb_set(${statsExpression}, '{total}', to_jsonb($${paramIndex}::int))`;
+      params.push(stats.total);
+      paramIndex++;
+    }
+
+    if (params.length === 0) {
+      return this.getById(dispatchId, userId);
+    }
+
+    params.push(dispatchId, userId);
+
+    const query = `
+      UPDATE dispatches
+      SET stats = ${statsExpression},
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramIndex++} AND user_id = $${paramIndex++}
+      RETURNING *
+    `;
+
+    const result = await pgPool.query(query, params);
+
+    if (result.rows.length === 0) {
       return null;
     }
 
-    // Mesclar stats
-    const updatedStats: DispatchStats = {
-      ...current.stats,
-      ...stats,
-    };
+    const updatedDispatch = this.mapRowToDispatch(result.rows[0]);
+    
+    // Emitir evento WebSocket para atualização em tempo real
+    try {
+      emitDispatchUpdate(userId, updatedDispatch);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Erro ao emitir evento de atualização de disparo:', errorMessage);
+    }
 
-    return this.update(dispatchId, userId, { stats: updatedStats });
+    return updatedDispatch;
   }
 
   /**

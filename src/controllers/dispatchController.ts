@@ -440,12 +440,10 @@ export const startDispatch = async (
     }
 
     // Verificar se há jobs pendentes
-    const pendingJobs = await pgPool.query(
-      `SELECT COUNT(*) as count FROM dispatch_jobs WHERE dispatch_id = $1 AND status = 'pending'`,
-      [id]
-    );
+    const { getPendingJobsCount } = await import('../queue/scheduler');
+    const pendingJobsCount = await getPendingJobsCount(id);
 
-    if (parseInt(pendingJobs.rows[0].count) === 0) {
+    if (pendingJobsCount === 0) {
       // Criar jobs se não existirem
       console.log('📋 Criando jobs para o disparo...');
       await createDispatchJobs(id);
@@ -524,12 +522,10 @@ export const resumeDispatch = async (
     }
 
     // Se não tem jobs pendentes, criar novos
-    const pendingJobs = await pgPool.query(
-      `SELECT COUNT(*) as count FROM dispatch_jobs WHERE dispatch_id = $1 AND status = 'pending'`,
-      [id]
-    );
+    const { getPendingJobsCount } = await import('../queue/scheduler');
+    const pendingJobsCount = await getPendingJobsCount(id);
 
-    if (parseInt(pendingJobs.rows[0].count) === 0) {
+    if (pendingJobsCount === 0) {
       // Recriar jobs
       await createDispatchJobs(id);
     }

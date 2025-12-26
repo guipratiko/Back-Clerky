@@ -487,6 +487,23 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
   const postgresJobId = job.data.jobId || job.id;
 
   try {
+    // Verificar se o disparo está em status válido para processar
+    const dispatchCheck = await pgPool.query(
+      `SELECT status FROM dispatches WHERE id = $1`,
+      [dispatchId]
+    );
+
+    if (dispatchCheck.rows.length === 0) {
+      console.log(`⚠️ Disparo ${dispatchId} não encontrado. Pulando processamento do job.`);
+      return;
+    }
+
+    const dispatchStatus = dispatchCheck.rows[0].status;
+    if (dispatchStatus !== 'running') {
+      console.log(`⏭️ Disparo ${dispatchId} está com status '${dispatchStatus}'. Pulando processamento do job.`);
+      return;
+    }
+
     // Verificar se o job já foi processado (idempotência)
     if (postgresJobId && job.data.jobId) {
       const jobCheck = await pgPool.query(
@@ -652,6 +669,10 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
       sent: 1,
     });
 
+    // Verificar se todos os jobs foram concluídos e marcar disparo como completed se necessário
+    const { checkAndMarkDispatchCompleted } = await import('./scheduler');
+    await checkAndMarkDispatchCompleted(dispatchId, job.data.userId);
+
     // Excluir mensagem se configurado
     // Nota: A exclusão é feita de forma assíncrona após o delay
     // Se falhar, o disparo será pausado na próxima verificação
@@ -781,12 +802,22 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
       await DispatchService.updateStats(dispatchId, job.data.userId, {
         invalid: 1,
       });
+      
+      // Verificar se todos os jobs foram concluídos e marcar disparo como completed se necessário
+      const { checkAndMarkDispatchCompleted } = await import('./scheduler');
+      await checkAndMarkDispatchCompleted(dispatchId, job.data.userId);
+      
       // Para números inválidos, não fazer throw - já sabemos que não existe, não adianta tentar novamente
       return;
     } else {
       await DispatchService.updateStats(dispatchId, job.data.userId, {
         failed: 1,
       });
+      
+      // Verificar se todos os jobs foram concluídos e marcar disparo como completed se necessário
+      const { checkAndMarkDispatchCompleted } = await import('./scheduler');
+      await checkAndMarkDispatchCompleted(dispatchId, job.data.userId);
+      
       // Para outros erros, fazer throw para que o Bull possa tentar novamente
       throw error;
     }

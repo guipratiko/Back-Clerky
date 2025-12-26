@@ -11,6 +11,57 @@ import Instance from '../models/Instance';
 import { pgPool } from '../config/databases';
 
 /**
+ * Verificar quantos jobs pendentes existem para um disparo
+ */
+export const getPendingJobsCount = async (dispatchId: string): Promise<number> => {
+  const { pgPool } = await import('../config/databases');
+  const result = await pgPool.query(
+    `SELECT COUNT(*) as count FROM dispatch_jobs WHERE dispatch_id = $1 AND status = 'pending'`,
+    [dispatchId]
+  );
+  return parseInt(result.rows[0].count);
+};
+
+/**
+ * Verificar se todos os jobs foram concluídos e marcar disparo como completed se necessário
+ */
+export const checkAndMarkDispatchCompleted = async (
+  dispatchId: string,
+  userId: string
+): Promise<boolean> => {
+  const { pgPool } = await import('../config/databases');
+  
+  // Verificar se todos os jobs foram concluídos
+  const allJobsResult = await pgPool.query(
+    `SELECT COUNT(*) as total, 
+            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+            SUM(CASE WHEN status = 'invalid' THEN 1 ELSE 0 END) as invalid
+     FROM dispatch_jobs WHERE dispatch_id = $1`,
+    [dispatchId]
+  );
+
+  if (allJobsResult.rows.length === 0) {
+    return false;
+  }
+
+  const { total, sent, failed, invalid } = allJobsResult.rows[0];
+  const completed = parseInt(sent) + parseInt(failed) + parseInt(invalid);
+
+  if (completed === parseInt(total) && parseInt(total) > 0) {
+    // Todos os jobs foram concluídos, marcar disparo como completed
+    await DispatchService.update(dispatchId, userId, {
+      status: 'completed',
+      completedAt: new Date(),
+    });
+    console.log(`✅ Disparo ${dispatchId} marcado como concluído (${sent} enviados, ${failed} falhados, ${invalid} inválidos)`);
+    return true;
+  }
+
+  return false;
+};
+
+/**
  * Verificar se é um dia permitido (não está suspenso)
  */
 const isAllowedDay = (schedule: DispatchSchedule): boolean => {
@@ -36,12 +87,60 @@ const isWithinAllowedHours = (schedule: DispatchSchedule): boolean => {
 };
 
 /**
+ * Verificar se a data de início já passou
+ */
+const hasStartDatePassed = (schedule: DispatchSchedule): boolean => {
+  if (!schedule.startDate) {
+    // Se não tem data de início, considerar que já passou (pode iniciar imediatamente)
+    return true;
+  }
+
+  const now = new Date();
+  const startDate = new Date(schedule.startDate);
+  
+  // Resetar horas para comparar apenas a data
+  now.setHours(0, 0, 0, 0);
+  startDate.setHours(0, 0, 0, 0);
+  
+  return now >= startDate;
+};
+
+/**
  * Calcular próximo horário permitido
  */
 const calculateNextAllowedTime = (schedule: DispatchSchedule): Date => {
   const now = new Date();
   let nextTime = new Date(now);
 
+  // Se tem data de início e ainda não chegou, usar a data de início
+  if (schedule.startDate) {
+    const startDate = new Date(schedule.startDate);
+    startDate.setHours(0, 0, 0, 0);
+    const nowDate = new Date(now);
+    nowDate.setHours(0, 0, 0, 0);
+
+    if (startDate > nowDate) {
+      // Data de início é no futuro, usar ela como base
+      nextTime = new Date(startDate);
+      const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+      nextTime.setHours(startHour, startMinute, 0, 0);
+      
+      // Verificar se o dia de início é permitido
+      if (!isAllowedDay(schedule)) {
+        // Avançar até próximo dia permitido
+        while (!isAllowedDay(schedule)) {
+          nextTime.setDate(nextTime.getDate() + 1);
+        }
+        // Ajustar horário novamente após mudar o dia
+        const [newStartHour, newStartMinute] = schedule.startTime.split(':').map(Number);
+        nextTime.setHours(newStartHour, newStartMinute, 0, 0);
+      }
+      
+      return nextTime;
+    }
+  }
+
+  // Se não tem data de início ou já passou, calcular próximo horário permitido normalmente
   // Se não é dia permitido, avançar para próximo dia permitido
   while (!isAllowedDay(schedule)) {
     nextTime.setDate(nextTime.getDate() + 1);
@@ -80,14 +179,22 @@ export const createDispatchJobs = async (dispatchId: string): Promise<void> => {
   // Buscar disparo (buscar sem filtro de userId para scheduler)
   const { pgPool } = await import('../config/databases');
   
-  // Verificar se já existem jobs para este disparo (evitar duplicação)
-  const existingJobsCheck = await pgPool.query(
+  // Verificar se já existem jobs PENDENTES para este disparo (evitar duplicação)
+  const pendingJobsCount = await getPendingJobsCount(dispatchId);
+  
+  if (pendingJobsCount > 0) {
+    console.log(`⚠️ Já existem ${pendingJobsCount} job(s) pendente(s) para o disparo ${dispatchId}. Não criando novos jobs para evitar duplicação.`);
+    return;
+  }
+  
+  // Verificar se existem jobs em outros status (sent, failed, invalid)
+  const allJobsCheck = await pgPool.query(
     `SELECT COUNT(*) as count FROM dispatch_jobs WHERE dispatch_id = $1`,
     [dispatchId]
   );
-
-  if (parseInt(existingJobsCheck.rows[0].count) > 0) {
-    console.log(`⚠️ Jobs já existem para o disparo ${dispatchId}. Não criando novos jobs para evitar duplicação.`);
+  
+  if (parseInt(allJobsCheck.rows[0].count) > 0) {
+    console.log(`⚠️ Já existem jobs (não pendentes) para o disparo ${dispatchId}. Não criando novos jobs.`);
     return;
   }
 
@@ -184,11 +291,8 @@ export const createDispatchJobs = async (dispatchId: string): Promise<void> => {
     );
   }
 
-  // Atualizar status do disparo
-  await DispatchService.update(dispatchId, dispatch.userId, {
-    status: 'running',
-    startedAt: new Date(),
-  });
+  // NOTA: Não atualizar status para 'running' aqui - isso deve ser feito pelo controller
+  // (startDispatch ou resumeDispatch) para evitar race conditions
 };
 
 /**
@@ -200,6 +304,12 @@ export const processScheduledDispatches = async (): Promise<void> => {
   for (const dispatch of dispatches) {
     try {
       if (!dispatch.schedule) {
+        continue;
+      }
+
+      // Verificar se a data de início já passou
+      if (!hasStartDatePassed(dispatch.schedule)) {
+        console.log(`⏳ Disparo ${dispatch.id} aguardando data de início: ${dispatch.schedule.startDate}`);
         continue;
       }
 
@@ -227,13 +337,9 @@ export const processScheduledDispatches = async (): Promise<void> => {
       // Se está pausado e voltou ao horário, retomar
       if (dispatch.status === 'paused') {
         // Verificar se há jobs pendentes
-        const pendingJobs = await pgPool.query(
-          `SELECT COUNT(*) as count FROM dispatch_jobs
-           WHERE dispatch_id = $1 AND status = 'pending'`,
-          [dispatch.id]
-        );
+        const pendingJobsCount = await getPendingJobsCount(dispatch.id);
 
-        if (parseInt(pendingJobs.rows[0].count) > 0) {
+        if (pendingJobsCount > 0) {
           // Retomar disparo
           await DispatchService.update(dispatch.id, dispatch.userId, {
             status: 'running',
@@ -297,27 +403,8 @@ export const resumeRunningDispatches = async (): Promise<void> => {
 
         if (jobsResult.rows.length === 0) {
           console.log(`ℹ️ Nenhum job pendente encontrado para disparo ${dispatchId}`);
-          // Verificar se todos os jobs foram concluídos
-          const allJobsResult = await pgPool.query(
-            `SELECT COUNT(*) as total, 
-                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-                    SUM(CASE WHEN status = 'invalid' THEN 1 ELSE 0 END) as invalid
-             FROM dispatch_jobs WHERE dispatch_id = $1`,
-            [dispatchId]
-          );
-
-          const { total, sent, failed, invalid } = allJobsResult.rows[0];
-          const completed = parseInt(sent) + parseInt(failed) + parseInt(invalid);
-
-          if (completed === parseInt(total)) {
-            // Todos os jobs foram concluídos, marcar disparo como completed
-            await DispatchService.update(dispatchId, userId, {
-              status: 'completed',
-              completedAt: new Date(),
-            });
-            console.log(`✅ Disparo ${dispatchId} marcado como concluído`);
-          }
+          // Verificar se todos os jobs foram concluídos e marcar como completed se necessário
+          await checkAndMarkDispatchCompleted(dispatchId, userId);
           continue;
         }
 
