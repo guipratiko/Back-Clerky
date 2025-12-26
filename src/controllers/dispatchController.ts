@@ -444,6 +444,13 @@ export const startDispatch = async (
       return next(createValidationError('Disparo já foi concluído'));
     }
 
+    // Atualizar status para running ANTES de criar os jobs
+    // Isso evita race condition onde jobs são processados antes do status ser atualizado
+    await DispatchService.update(id, userId, { 
+      status: 'running',
+      startedAt: new Date(),
+    });
+
     // Verificar se há jobs pendentes
     const { getPendingJobsCount } = await import('../queue/scheduler');
     const pendingJobsCount = await getPendingJobsCount(id);
@@ -454,12 +461,6 @@ export const startDispatch = async (
       await createDispatchJobs(id);
       console.log('✅ Jobs criados com sucesso');
     }
-
-    // Atualizar status para running
-    await DispatchService.update(id, userId, { 
-      status: 'running',
-      startedAt: new Date(),
-    });
 
     res.status(200).json({
       status: 'success',
@@ -595,6 +596,10 @@ export const resumeDispatch = async (
       return next(createNotFoundError('Disparo'));
     }
 
+    // Atualizar status para running ANTES de criar os jobs
+    // Isso evita race condition onde jobs são processados antes do status ser atualizado
+    await DispatchService.update(id, userId, { status: 'running' });
+
     // Se não tem jobs pendentes, criar novos
     const { getPendingJobsCount } = await import('../queue/scheduler');
     const pendingJobsCount = await getPendingJobsCount(id);
@@ -603,8 +608,6 @@ export const resumeDispatch = async (
       // Recriar jobs
       await createDispatchJobs(id);
     }
-
-    await DispatchService.update(id, userId, { status: 'running' });
 
     res.status(200).json({
       status: 'success',
