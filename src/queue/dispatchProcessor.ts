@@ -6,7 +6,7 @@
 import { Job } from 'bull';
 import { requestEvolutionAPI } from '../utils/evolutionAPI';
 import { replaceVariablesInContent } from '../utils/variableReplacer';
-import { formatPhoneForDisplay, normalizePhone } from '../utils/numberNormalizer';
+import { formatBrazilianPhone, normalizePhone } from '../utils/numberNormalizer';
 import { DispatchService } from '../services/dispatchService';
 import { TemplateService } from '../services/templateService';
 import { pgPool } from '../config/databases';
@@ -528,7 +528,7 @@ export const processDispatchJob = async (job: Job<DispatchJobData>): Promise<voi
     const contact = {
       phone: normalizedPhone,
       name: contactData.name,
-      formattedPhone: contactData.formattedPhone || formatPhoneForDisplay(normalizedPhone),
+      formattedPhone: contactData.formattedPhone || formatBrazilianPhone(normalizedPhone),
     };
 
     // Buscar template se houver
