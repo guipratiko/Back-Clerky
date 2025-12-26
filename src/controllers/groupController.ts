@@ -713,8 +713,8 @@ function extractPhoneFromJid(jid: string): string {
 
 /**
  * Helper para formatar número de telefone brasileiro
- * Remove DDI 55 e formata no padrão: XX X XXXX-XXXX
- * Exemplo: 556298448536 -> 62 9 9844-8536
+ * Remove DDI 55 e formata no padrão: 9 XXXX-XXXX
+ * Exemplo: 556298448536 -> 9 9844-8536
  */
 function formatBrazilianPhone(phone: string): string {
   if (!phone) return '';
@@ -732,14 +732,19 @@ function formatBrazilianPhone(phone: string): string {
     return phone; // Retornar original se não tiver formato válido
   }
   
-  // Formatar no padrão brasileiro: XX X XXXX-XXXX
-  // DDD (2 dígitos) + 9º dígito (1 dígito) + número (8 dígitos)
-  if (cleanPhone.length === 11) {
-    // Número com 9º dígito: 6298448536 -> 62 9 9844-8536
-    return `${cleanPhone.substring(0, 2)} ${cleanPhone.substring(2, 3)} ${cleanPhone.substring(3, 7)}-${cleanPhone.substring(7)}`;
-  } else if (cleanPhone.length === 10) {
-    // Número sem 9º dígito: 6298448536 -> 62 9844-8536
-    return `${cleanPhone.substring(0, 2)} ${cleanPhone.substring(2, 6)}-${cleanPhone.substring(6)}`;
+  // Remover DDD (2 primeiros dígitos)
+  let numberOnly = cleanPhone;
+  if (cleanPhone.length >= 10) {
+    numberOnly = cleanPhone.substring(2); // Remove DDD
+  }
+  
+  // Formatar no padrão: 9 XXXX-XXXX
+  if (numberOnly.length === 9) {
+    // Número com 9º dígito: 998448536 -> 9 9844-8536
+    return `${numberOnly.substring(0, 1)} ${numberOnly.substring(1, 5)}-${numberOnly.substring(5)}`;
+  } else if (numberOnly.length === 8) {
+    // Número sem 9º dígito: adicionar 9 -> 9 9844-8536
+    return `9 ${numberOnly.substring(0, 4)}-${numberOnly.substring(4)}`;
   }
   
   // Se não couber no padrão, retornar original
