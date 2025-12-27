@@ -258,9 +258,7 @@ export const validateContacts = async (
         // Mas se não tiver nome fornecido, usar o nome da validação
         const finalName = contact.name || validationResult.name || undefined;
         
-        if (validationResult.name && !contact.name) {
-          console.log(`📝 Nome enriquecido da API para ${normalizedPhone}: ${validationResult.name}`);
-        }
+        // Nome enriquecido da API (log removido para reduzir verbosidade)
         
         validatedContacts.push({
           phone: normalizedPhone,

@@ -295,16 +295,18 @@ export const updateInstanceSettings = async (
       // Tentar POST primeiro, se falhar, tentar PUT
       try {
         await requestEvolutionAPI('POST', settingsPath, settings);
-      } catch (postError: any) {
-        if (postError.message?.includes('405')) {
+      } catch (postError: unknown) {
+        const errorMessage = postError instanceof Error ? postError.message : '';
+        if (errorMessage.includes('405')) {
           await requestEvolutionAPI('PUT', settingsPath, settings);
         } else {
           throw postError;
         }
       }
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       // Log do erro mas continua atualizando no banco
-      console.error('Erro ao atualizar settings na Evolution API:', apiError.message);
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Erro desconhecido';
+      console.error('Erro ao atualizar settings na Evolution API:', errorMessage);
     }
 
     // Atualizar no banco de dados
@@ -396,8 +398,9 @@ export const deleteInstance = async (
       } finally {
         client.release();
       }
-    } catch (pgError: any) {
-      console.error('❌ Erro ao deletar dados do PostgreSQL:', pgError.message);
+    } catch (pgError: unknown) {
+      const errorMessage = pgError instanceof Error ? pgError.message : 'Erro desconhecido';
+      console.error('❌ Erro ao deletar dados do PostgreSQL:', errorMessage);
       // Continuar mesmo se houver erro no PostgreSQL
     }
 
@@ -425,8 +428,9 @@ export const deleteInstance = async (
         await redisClient.del(...allKeysToDelete);
         console.log(`✅ ${allKeysToDelete.length} chave(s) adicional(is) deletada(s) do Redis`);
       }
-    } catch (redisError: any) {
-      console.error('❌ Erro ao deletar dados do Redis:', redisError.message);
+    } catch (redisError: unknown) {
+      const errorMessage = redisError instanceof Error ? redisError.message : 'Erro desconhecido';
+      console.error('❌ Erro ao deletar dados do Redis:', errorMessage);
       // Continuar mesmo se houver erro no Redis
     }
 
@@ -434,9 +438,10 @@ export const deleteInstance = async (
     try {
       await requestEvolutionAPI('DELETE', `/instance/delete/${encodeURIComponent(instance.instanceName)}`);
       console.log(`✅ Instância deletada na Evolution API`);
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       // Log do erro mas continua deletando do banco
-      console.error('⚠️  Erro ao deletar instância na Evolution API:', apiError.message);
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Erro desconhecido';
+      console.error('⚠️  Erro ao deletar instância na Evolution API:', errorMessage);
     }
 
     // 4. Deletar instância do MongoDB (por último)

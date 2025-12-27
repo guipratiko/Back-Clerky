@@ -71,7 +71,7 @@ export class MessageService {
         const cached = await redisClient.get(cacheKey);
         if (cached) {
           const cachedData = JSON.parse(cached);
-          console.log(`📦 Cache hit: ${cacheKey}`);
+          // Cache hit (log removido para reduzir verbosidade)
           return cachedData;
         }
       } catch (error) {
@@ -202,7 +202,7 @@ export class MessageService {
 
       if (result.rows.length === 0) {
         // Mensagem já existe (conflito), buscar existente
-        console.log(`⚠️ Mensagem já existe (messageId: ${data.messageId}, instanceId: ${data.instanceId}), buscando existente...`);
+        // Log removido para reduzir verbosidade
         const existingQuery = `
           SELECT * FROM messages
           WHERE message_id = $1 AND instance_id = $2
@@ -215,7 +215,7 @@ export class MessageService {
       }
 
       const message = this.mapRowToMessage(result.rows[0]);
-      console.log(`💾 Mensagem salva no PostgreSQL: ID=${message.id}, messageId=${message.messageId}`);
+      // Mensagem salva (log removido para reduzir verbosidade)
 
       // Invalidar cache
       await this.invalidateCache(data.contactId);

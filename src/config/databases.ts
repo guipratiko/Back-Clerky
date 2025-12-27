@@ -25,7 +25,7 @@ export const connectMongoDB = async (): Promise<void> => {
 
 // Event listeners para MongoDB
 mongoose.connection.on('disconnected', () => {
-  console.log('⚠️  MongoDB desconectado');
+  // MongoDB desconectado (log removido para reduzir verbosidade)
 });
 
 mongoose.connection.on('error', (error) => {
@@ -89,11 +89,11 @@ redisClient.on('error', (err) => {
 });
 
 redisClient.on('close', () => {
-  console.log('⚠️  Conexão Redis fechada');
+  // Conexão Redis fechada (log removido)
 });
 
 redisClient.on('reconnecting', () => {
-  console.log('🔄 Reconectando ao Redis...');
+  // Reconectando ao Redis (log removido)
 });
 
 // Função para testar conexão Redis

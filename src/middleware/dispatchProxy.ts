@@ -58,13 +58,22 @@ async function proxyRequest(
     const targetUrl = `${DISPATCH_SERVICE_URL}/api${path}`;
     
     // Preparar headers
-    const headers: any = {};
+    const headers: Record<string, string> = {};
     if (req.headers.authorization) {
       headers.Authorization = req.headers.authorization;
     }
 
     // Fazer requisição para o microserviço
-    const config: any = {
+    const config: {
+      method: string;
+      url: string;
+      headers: Record<string, string>;
+      timeout: number;
+      params?: Record<string, unknown>;
+      data?: unknown;
+      maxContentLength?: number;
+      maxBodyLength?: number;
+    } = {
       method: req.method,
       url: targetUrl,
       headers,

@@ -9,7 +9,6 @@ import { requestEvolutionAPI } from '../utils/evolutionAPI';
 import { uploadFileToService } from '../utils/mediaService';
 import { normalizePhoneList, extractPhoneFromJid, formatBrazilianPhone } from '../utils/numberNormalizer';
 import { validatePhoneNumbers } from '../services/contactValidationService';
-// parseCSVFile não é usado aqui, apenas parseCSVText e parseInputText são usados no frontend
 import multer from 'multer';
 import {
   createValidationError,
@@ -130,7 +129,7 @@ export const getAllGroups = async (
       const cached = await redisClient.get(cacheKey);
       if (cached) {
         const cachedData = JSON.parse(cached);
-        console.log(`📦 Cache hit: ${cacheKey}`);
+        // Cache hit (log removido para reduzir verbosidade)
         res.status(200).json({
           status: 'success',
           groups: cachedData.groups || [],
@@ -172,7 +171,7 @@ export const getAllGroups = async (
       // Salvar no cache
       try {
         await redisClient.setex(cacheKey, CACHE_TTL, JSON.stringify({ groups, count: groups.length }));
-        console.log(`💾 Cache salvo: ${cacheKey} (TTL: ${CACHE_TTL}s)`);
+        // Cache salvo (log removido para reduzir verbosidade)
       } catch (cacheError) {
         console.error('Erro ao salvar cache de grupos:', cacheError);
         // Continuar mesmo se o cache falhar
@@ -183,8 +182,9 @@ export const getAllGroups = async (
         groups,
         count: groups.length,
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao buscar grupos na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao buscar grupos na Evolution API:', errorMessage);
       
       // Se for erro de rate limit, tentar retornar do cache mesmo que expirado
       if (evolutionError.message?.includes('rate-overlimit') || 
@@ -193,7 +193,7 @@ export const getAllGroups = async (
           const cached = await redisClient.get(cacheKey);
           if (cached) {
             const cachedData = JSON.parse(cached);
-            console.log(`📦 Retornando cache devido a rate limit: ${cacheKey}`);
+            // Retornando cache devido a rate limit (log removido)
             res.status(200).json({
               status: 'success',
               groups: cachedData.groups || [],
@@ -272,8 +272,9 @@ export const leaveGroup = async (
         status: 'success',
         message: 'Saiu do grupo com sucesso',
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao sair do grupo na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao sair do grupo na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -425,8 +426,9 @@ export const createGroup = async (
           description: response.data?.description || description,
         },
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao criar grupo na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao criar grupo na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -499,8 +501,9 @@ export const updateGroupPicture = async (
         message: 'Imagem do grupo atualizada com sucesso',
         imageUrl: uploadResult.fullUrl,
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao atualizar imagem do grupo na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao atualizar imagem do grupo na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -563,8 +566,9 @@ export const updateGroupSubject = async (
         status: 'success',
         message: 'Nome do grupo atualizado com sucesso',
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao atualizar nome do grupo na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao atualizar nome do grupo na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -623,8 +627,9 @@ export const updateGroupDescription = async (
         status: 'success',
         message: 'Descrição do grupo atualizada com sucesso',
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao atualizar descrição do grupo na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao atualizar descrição do grupo na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -692,8 +697,9 @@ export const getGroupParticipants = async (
         status: 'success',
         participants,
       });
-    } catch (apiError: any) {
-      console.error('Erro ao buscar participantes na Evolution API:', apiError.message);
+    } catch (apiError: unknown) {
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Erro desconhecido';
+      console.error('Erro ao buscar participantes na Evolution API:', errorMessage);
       return next(handleControllerError(apiError, 'Erro ao buscar participantes do grupo'));
     }
   } catch (error: unknown) {
@@ -742,8 +748,9 @@ export const getInviteCode = async (
         code: response.data?.code || response.data?.inviteCode || '',
         url: response.data?.url || response.data?.inviteUrl || '',
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao obter código de convite na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao obter código de convite na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,
@@ -866,8 +873,9 @@ export const mentionEveryone = async (
         status: 'success',
         message: 'Mensagem enviada com sucesso',
       });
-    } catch (evolutionError: any) {
-      console.error('Erro ao mencionar todos na Evolution API:', evolutionError);
+    } catch (evolutionError: unknown) {
+      const errorMessage = evolutionError instanceof Error ? evolutionError.message : 'Erro desconhecido';
+      console.error('Erro ao mencionar todos na Evolution API:', errorMessage);
       return next(
         handleControllerError(
           evolutionError,

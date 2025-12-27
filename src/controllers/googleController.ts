@@ -126,8 +126,9 @@ export const googleAuthCallback = async (
           </body>
         </html>
       `);
-    } catch (error: any) {
-      console.error('Erro no callback:', error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Erro no callback:', errorMessage);
       res.send(`
         <html>
           <head>

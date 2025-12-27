@@ -33,7 +33,6 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
     try {
       const decoded = jwt.verify(token, JWT_CONFIG.SECRET) as { id: string };
       socket.userId = decoded.id.toString(); // Garantir que é string
-      console.log(`🔐 [Socket] Usuário autenticado: ${socket.userId} (tipo: ${typeof socket.userId})`);
       next();
     } catch (error) {
       next(new Error('Token inválido'));
@@ -41,13 +40,10 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
   });
 
   io.on('connection', (socket: AuthenticatedSocket) => {
-    console.log(`✅ Cliente conectado: ${socket.id} (User: ${socket.userId})`);
-
     // Adicionar socket à sala do usuário para receber eventos específicos
     if (socket.userId) {
       const userIdStr = socket.userId.toString();
       socket.join(userIdStr);
-      console.log(`📦 Socket ${socket.id} entrou na sala do usuário: ${userIdStr} (tipo: ${typeof userIdStr})`);
       
       // Também adicionar à sala com ObjectId original (caso seja necessário)
       socket.join(socket.userId);
@@ -130,7 +126,6 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
       }
 
       const userIdStr = data.userId.toString();
-      console.log(`📤 [Socket] Re-emitindo atualização de disparo para usuário ${userIdStr}`);
       
       // Re-emitir para o frontend na sala do usuário
       if (io) {
@@ -141,7 +136,7 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
     });
 
     socket.on('disconnect', () => {
-      console.log(`❌ Cliente desconectado: ${socket.id}`);
+      // Cliente desconectado (log removido para reduzir verbosidade)
     });
   });
 
@@ -164,8 +159,6 @@ export const emitGroupsUpdate = (userId: string, instanceId: string): void => {
   }
 
   const userIdStr = userId.toString();
-  console.log(`📤 Emitindo atualização de grupos para usuário ${userIdStr} - instância ${instanceId}`);
-  
   io.to(userIdStr).emit('groups-updated', {
     instanceId: instanceId,
   });
@@ -217,7 +210,6 @@ export const startStatusChecker = () => {
             if (io && instance.userId) {
               const userIdStr = instance.userId.toString();
               const instanceIdStr = instance._id.toString();
-              console.log(`📤 Emitindo evento para usuário ${userIdStr}: instância ${instanceIdStr} -> status ${newStatus}`);
               io.to(userIdStr).emit('instance-status-updated', {
                 instanceId: instanceIdStr,
                 status: newStatus,

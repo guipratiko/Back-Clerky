@@ -526,8 +526,9 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
             // Não bloquear o processamento da mensagem se o agente falhar
           }
         }
-      } catch (msgError: any) {
-        console.error('❌ Erro ao salvar mensagem no PostgreSQL:', msgError.message);
+      } catch (msgError: unknown) {
+        const errorMessage = msgError instanceof Error ? msgError.message : 'Erro desconhecido';
+        console.error('❌ Erro ao salvar mensagem no PostgreSQL:', errorMessage);
         // Continuar mesmo se falhar ao salvar mensagem
       }
 

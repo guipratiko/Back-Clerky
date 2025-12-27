@@ -4,9 +4,7 @@ process.env.TZ = 'America/Sao_Paulo';
 // Importar constants primeiro para carregar dotenv
 import { SERVER_CONFIG } from './config/constants';
 
-// Log do timezone configurado
-console.log('🕐 Timezone configurado:', Intl.DateTimeFormat().resolvedOptions().timeZone);
-console.log('🕐 Data/Hora atual (SP):', new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
+// Timezone configurado (logs removidos para reduzir verbosidade)
 
 import express, { Express } from 'express';
 import { createServer } from 'http';
@@ -31,17 +29,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Middleware de debug para webhooks (apenas em desenvolvimento)
-if (SERVER_CONFIG.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/webhook')) {
-      console.log(`🔍 [DEBUG] Requisição recebida: ${req.method} ${req.path}`);
-      console.log(`🔍 [DEBUG] Parâmetros:`, req.params);
-      console.log(`🔍 [DEBUG] Query:`, req.query);
-    }
-    next();
-  });
-}
+// Middleware de debug para webhooks removido (reduzir verbosidade)
 
 // Conectar a todos os bancos de dados (MongoDB, PostgreSQL, Redis)
 connectAllDatabases();
