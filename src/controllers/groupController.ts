@@ -187,8 +187,16 @@ export const getAllGroups = async (
       console.error('Erro ao buscar grupos na Evolution API:', errorMessage);
       
       // Se for erro de rate limit, tentar retornar do cache mesmo que expirado
-      if (evolutionError.message?.includes('rate-overlimit') || 
-          evolutionError.response?.response?.message === 'rate-overlimit') {
+      let isRateLimitError = false;
+      if (evolutionError instanceof Error) {
+        isRateLimitError = evolutionError.message?.includes('rate-overlimit') || false;
+      }
+      if (!isRateLimitError && evolutionError && typeof evolutionError === 'object' && 'response' in evolutionError) {
+        const axiosError = evolutionError as { response?: { message?: string } };
+        isRateLimitError = axiosError.response?.message === 'rate-overlimit';
+      }
+      
+      if (isRateLimitError) {
         try {
           const cached = await redisClient.get(cacheKey);
           if (cached) {

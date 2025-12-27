@@ -156,12 +156,12 @@ export const googleAuthCallback = async (
           <body>
             <div class="container">
               <h1>❌ Erro na autenticação</h1>
-              <p>${error.message || 'Ocorreu um erro ao processar a autenticação.'}</p>
+              <p>${error instanceof Error ? error.message : 'Ocorreu um erro ao processar a autenticação.'}</p>
             </div>
             <script>
               window.opener.postMessage({ 
                 type: 'GOOGLE_AUTH_ERROR', 
-                message: '${error.message || 'Erro ao processar autenticação'}'
+                message: '${error instanceof Error ? error.message : 'Erro ao processar autenticação'}'
               }, '*');
               setTimeout(() => window.close(), 3000);
             </script>
