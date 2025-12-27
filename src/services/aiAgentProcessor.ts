@@ -9,12 +9,13 @@
 
 import axios from 'axios';
 import { redisClient } from '../config/databases';
-import { OPENAI_CONFIG, TRANSCRIPTION_CONFIG } from '../config/constants';
+import { OPENAI_CONFIG, TRANSCRIPTION_CONFIG, SERVER_CONFIG, GOOGLE_CONFIG } from '../config/constants';
 import { callOpenAI } from './openaiService';
 import { sendMessage } from '../utils/evolutionAPI';
 import Instance from '../models/Instance';
 import { requestEvolutionAPI } from '../utils/evolutionAPI';
 import { normalizePhone } from '../utils/numberNormalizer';
+import { ContactService } from './contactService';
 
 interface BufferedMessage {
   contactPhone: string;
@@ -292,6 +293,29 @@ export async function processBufferedMessages(
     // Obter memória do contato
     let memory = await getContactMemory(userId, instanceId, contactPhone);
 
+    // Buscar nome do contato no banco de dados (sempre atualizar para garantir que está sincronizado)
+    try {
+      // Normalizar telefone para buscar no banco
+      const normalizedPhone = normalizePhone(contactPhone, '55');
+      if (normalizedPhone) {
+        // Construir remoteJid para buscar contato
+        const remoteJid = `${normalizedPhone}@s.whatsapp.net`;
+        const contact = await ContactService.getContactByRemoteJid(
+          userId,
+          instanceId,
+          remoteJid
+        );
+        
+        if (contact && contact.name) {
+          memory.structuredData.name = contact.name;
+          console.log(`📝 Nome do contato atualizado do banco: ${contact.name}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Erro ao buscar nome do contato:`, error);
+      // Continuar mesmo se não conseguir buscar o nome
+    }
+
     // Processar cada mensagem (transcrever áudios se necessário)
     const processedMessages: string[] = [];
 
@@ -465,8 +489,16 @@ async function moveContactToColumn2(
       return;
     }
 
+    // Determinar URL base do backend (usa GOOGLE_CONFIG.API_URL que já está configurada corretamente)
+    const backendUrl = process.env.API_URL || 
+                      process.env.BACKEND_URL || 
+                      GOOGLE_CONFIG.API_URL ||
+                      (SERVER_CONFIG.NODE_ENV === 'development' 
+                        ? 'http://localhost:4331' 
+                        : 'https://back.clerky.com.br');
+
     await axios.post(
-      `${process.env.API_URL || process.env.BACKEND_URL || 'https://back.clerky.com.br'}/api/v1/webhook/move-contact`,
+      `${backendUrl}/api/v1/webhook/move-contact`,
       {
         phone: normalizedPhone,
         columnId: column2.id,
@@ -537,7 +569,46 @@ export async function getLeads(userId: string, instanceId?: string): Promise<Con
     const data = await redisClient.get(key);
     if (data) {
       try {
-        leads.push(JSON.parse(data));
+        const memory: ContactMemory = JSON.parse(data);
+        
+        // Se não tiver nome na memória, buscar do banco de dados
+        if (!memory.structuredData.name && memory.structuredData.phone) {
+          try {
+            const normalizedPhone = normalizePhone(memory.structuredData.phone, '55');
+            if (normalizedPhone) {
+              const remoteJid = `${normalizedPhone}@s.whatsapp.net`;
+              
+              // Extrair instanceId da chave Redis (formato: ai_agent:memory:userId:instanceId:phone)
+              let contactInstanceId = instanceId;
+              if (!contactInstanceId && key.includes(':')) {
+                const parts = key.split(':');
+                // ai_agent:memory:userId:instanceId:phone
+                if (parts.length >= 5) {
+                  contactInstanceId = parts[3];
+                }
+              }
+              
+              if (contactInstanceId) {
+                const contact = await ContactService.getContactByRemoteJid(
+                  userId,
+                  contactInstanceId,
+                  remoteJid
+                );
+                
+                if (contact && contact.name) {
+                  memory.structuredData.name = contact.name;
+                  // Atualizar na memória também
+                  await saveContactMemory(userId, contactInstanceId, memory.structuredData.phone, memory);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️ Erro ao buscar nome do contato ${memory.structuredData.phone}:`, error);
+            // Continuar mesmo se não conseguir buscar o nome
+          }
+        }
+        
+        leads.push(memory);
       } catch {
         // Ignorar chaves inválidas
       }

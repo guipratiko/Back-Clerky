@@ -161,32 +161,36 @@ export const formatBrazilianPhone = (phone: string): string => {
 };
 
 /**
- * Formata um número normalizado para exibição (formato alternativo)
- * @param phone - Número normalizado (ex: 5562998448536)
- * @returns Número formatado (ex: (62) 99844-8536)
- * @deprecated Use formatBrazilianPhone() para formatação padronizada
+ * Garante que um número está normalizado
+ * Remove @s.whatsapp.net se presente e normaliza
+ * @param phone - Número de telefone (pode ter @s.whatsapp.net)
+ * @param defaultDDI - DDI padrão
+ * @returns Número normalizado ou null se inválido
  */
-export const formatPhoneForDisplay = (phone: string): string => {
-  if (!phone || phone.length < 10) {
-    return phone;
+export const ensureNormalizedPhone = (phone: string, defaultDDI: string = '55'): string | null => {
+  if (!phone || typeof phone !== 'string') {
+    return null;
   }
 
-  // Remover DDI se presente (assumindo DDI de 2 dígitos)
-  let number = phone;
-  if (phone.length > 10) {
-    // Tem DDI, remover
-    number = phone.substring(2);
-  }
+  // Remover @s.whatsapp.net se presente
+  let cleanPhone = phone.replace('@s.whatsapp.net', '').trim();
 
-  // Formatar: (DDD) Número
-  if (number.length === 10) {
-    // Número fixo: (DDD) XXXX-XXXX
-    return `(${number.substring(0, 2)}) ${number.substring(2, 6)}-${number.substring(6)}`;
-  } else if (number.length === 11) {
-    // Número celular: (DDD) 9XXXX-XXXX
-    return `(${number.substring(0, 2)}) ${number.substring(2, 7)}-${number.substring(7)}`;
-  }
+  // Normalizar
+  return normalizePhone(cleanPhone, defaultDDI);
+};
 
-  return phone;
+/**
+ * Garante que uma lista de números está normalizada
+ * @param phones - Array de números de telefone
+ * @param defaultDDI - DDI padrão
+ * @returns Array de números normalizados (filtra nulls)
+ */
+export const ensureNormalizedPhoneList = (
+  phones: string[],
+  defaultDDI: string = '55'
+): string[] => {
+  return phones
+    .map((phone) => ensureNormalizedPhone(phone, defaultDDI))
+    .filter((phone): phone is string => phone !== null);
 };
 

@@ -6,6 +6,8 @@ import {
   handleControllerError,
 } from '../utils/errorHelpers';
 import { WorkflowService } from '../services/workflowService';
+import axios from 'axios';
+import { MINDLERKY_CONFIG } from '../config/constants';
 
 /**
  * Obter todos os workflows do usuário
@@ -443,37 +445,49 @@ export const receiveTypebotWebhook = async (
       return;
     }
 
-    // Normalizar telefone (remover caracteres especiais e garantir formato correto)
-    let normalizedPhone = phone.replace(/\D/g, ''); // Remove tudo que não é dígito
-    if (!normalizedPhone.startsWith('55') && normalizedPhone.length >= 10) {
-      normalizedPhone = `55${normalizedPhone}`;
+    // Normalizar telefone usando função utilitária
+    const { normalizePhone } = await import('../utils/numberNormalizer');
+    const normalizedPhone = normalizePhone(phone, '55');
+    if (!normalizedPhone) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Telefone inválido no payload',
+      });
+      return;
     }
 
-    // Criar uma mensagem de texto com os dados do body para passar ao workflow
-    // O workflow pode usar esses dados em condições ou respostas
-    const messageText = JSON.stringify(bodyData);
+    // Chamar endpoint do MindClerky para processar o webhook do Typebot
+    try {
+      await axios.post(
+        `${MINDLERKY_CONFIG.URL}/workflows/webhook/typebot/${nodeId}`,
+        payload, // Enviar o payload original completo
+        {
+          timeout: 30000, // 30 segundos de timeout (workflows podem demorar mais)
+        }
+      );
 
-    // Executar o workflow
-    // Para workflows do Typebot, não precisamos de instanceId do WhatsApp, mas precisamos de um userId
-    // Vamos buscar o userId do workflow
-    const userId = targetWorkflow.userId;
-
-    // Importar e executar o workflow executor
-    const { executeWorkflowFromTypebot } = await import('../services/workflowExecutor');
-    
-    await executeWorkflowFromTypebot(
-      targetWorkflow,
-      normalizedPhone,
-      bodyData,
-      userId
-    );
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Webhook processado com sucesso',
-      workflowId: targetWorkflow.id,
-      nodeId,
-    });
+      res.status(200).json({
+        status: 'success',
+        message: 'Webhook processado com sucesso',
+        workflowId: targetWorkflow.id,
+        nodeId,
+      });
+    } catch (workflowError) {
+      // Log apenas se não for erro de timeout ou conexão (pode ser que o MindClerky não esteja rodando)
+      if (axios.isAxiosError(workflowError)) {
+        if (workflowError.code === 'ECONNREFUSED' || workflowError.code === 'ETIMEDOUT') {
+          console.warn('⚠️ MindClerky não está disponível. Webhook do Typebot não será processado.');
+          res.status(503).json({
+            status: 'error',
+            message: 'Serviço de workflows temporariamente indisponível',
+          });
+          return;
+        }
+      }
+      
+      console.error('❌ Erro ao processar webhook do Typebot no MindClerky:', workflowError);
+      throw workflowError; // Re-throw para ser capturado pelo catch externo
+    }
   } catch (error: unknown) {
     console.error('❌ Erro ao processar webhook do Typebot:', error);
     return next(handleControllerError(error, 'Erro ao processar webhook do Typebot'));

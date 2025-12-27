@@ -78,3 +78,8 @@ export const TRANSCRIPTION_CONFIG = {
   CALLBACK_URL: process.env.TRANSCRIPTION_CALLBACK_URL || 'https://back.clerky.com.br/api/ai-agent/transcription-callback',
 };
 
+// MindClerky Configuration (Microserviço de Workflows)
+export const MINDLERKY_CONFIG = {
+  URL: process.env.MINDLERKY_URL || 'http://localhost:4333/api',
+};
+

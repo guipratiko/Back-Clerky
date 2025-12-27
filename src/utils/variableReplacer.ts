@@ -61,8 +61,8 @@ export const replaceVariables = (
     return text;
   }
 
-  // Determinar nome a ser usado (prioridade: contact.name > defaultName)
-  const contactName = contact.name || defaultName;
+  // Usar o nome do contato se existir e não for vazio, senão usar defaultName
+  const contactName = (contact.name && contact.name.trim()) ? contact.name.trim() : defaultName;
 
   // Calcular valores das variáveis do contato
   const firstName = getFirstName(contactName);
@@ -73,6 +73,7 @@ export const replaceVariables = (
 
   // Mapa de variáveis para valores (variáveis padrão do contato)
   const variables: Record<string, string> = {
+    $name: fullName, // Alias para $fullName (nome completo)
     $firstName: firstName,
     $lastName: lastName,
     $fullName: fullName,
@@ -106,25 +107,27 @@ export const replaceVariables = (
  * @param content - Conteúdo do template (pode ser string ou objeto)
  * @param contact - Dados do contato
  * @param defaultName - Nome padrão
+ * @param typebotVariables - Variáveis do Typebot (opcional)
  * @returns Conteúdo com variáveis substituídas
  */
 export const replaceVariablesInContent = (
   content: any,
   contact: ContactData,
-  defaultName: string = 'Cliente'
+  defaultName: string = 'Cliente',
+  typebotVariables?: Record<string, any>
 ): any => {
   if (typeof content === 'string') {
-    return replaceVariables(content, contact, defaultName);
+    return replaceVariables(content, contact, defaultName, typebotVariables);
   }
 
   if (Array.isArray(content)) {
-    return content.map((item) => replaceVariablesInContent(item, contact, defaultName));
+    return content.map((item) => replaceVariablesInContent(item, contact, defaultName, typebotVariables));
   }
 
   if (content && typeof content === 'object') {
     const result: any = {};
     for (const [key, value] of Object.entries(content)) {
-      result[key] = replaceVariablesInContent(value, contact, defaultName);
+      result[key] = replaceVariablesInContent(value, contact, defaultName, typebotVariables);
     }
     return result;
   }
@@ -136,6 +139,7 @@ export const replaceVariablesInContent = (
  * Lista de variáveis disponíveis para exibição no frontend
  */
 export const AVAILABLE_VARIABLES = [
+  { variable: '$name', label: 'Nome', description: 'Nome completo do contato (alias para $fullName)' },
   { variable: '$firstName', label: 'Primeiro Nome', description: 'Primeiro nome do contato' },
   { variable: '$lastName', label: 'Último Nome', description: 'Último nome do contato' },
   { variable: '$fullName', label: 'Nome Completo', description: 'Nome completo do contato' },

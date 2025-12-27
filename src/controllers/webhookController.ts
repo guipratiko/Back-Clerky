@@ -8,7 +8,8 @@ import { uploadMediaToService } from '../utils/mediaService';
 import { CRMColumnService } from '../services/crmColumnService';
 import { ContactService } from '../services/contactService';
 import { MessageService } from '../services/messageService';
-import { processMessageForWorkflows } from '../services/workflowExecutor';
+import { MINDLERKY_CONFIG } from '../config/constants';
+import axios from 'axios';
 import { AIAgentService } from '../services/aiAgentService';
 import {
   addMessageToBuffer,
@@ -442,19 +443,36 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
         });
 
         // Processar workflows do MindClerky (apenas para mensagens recebidas com texto)
+        // Chamar o microserviço MindClerky ao invés de processar internamente
         if (!fromMe && conversation) {
           try {
             // Usar o remoteJid completo (com @s.whatsapp.net) ou extrair número completo
             const fullPhone = extracted.remoteJid?.replace(/@.*$/, '') || phone;
-            await processMessageForWorkflows(
-              instance._id.toString(),
-              userId,
-              fullPhone,
-              conversation,
-              false
+            
+            // Chamar endpoint do MindClerky
+            await axios.post(
+              `${MINDLERKY_CONFIG.URL}/workflows/trigger`,
+              {
+                instanceId: instance._id.toString(),
+                userId,
+                contactPhone: fullPhone,
+                messageText: conversation,
+              },
+              {
+                timeout: 10000, // 10 segundos de timeout
+              }
             );
           } catch (workflowError) {
-            console.error('❌ Erro ao processar workflows:', workflowError);
+            // Log apenas se não for erro de timeout ou conexão (pode ser que o MindClerky não esteja rodando)
+            if (axios.isAxiosError(workflowError)) {
+              if (workflowError.code === 'ECONNREFUSED' || workflowError.code === 'ETIMEDOUT') {
+                console.warn('⚠️ MindClerky não está disponível. Workflows não serão processados.');
+              } else {
+                console.error('❌ Erro ao processar workflows no MindClerky:', workflowError.message);
+              }
+            } else {
+              console.error('❌ Erro ao processar workflows:', workflowError);
+            }
             // Não bloquear o processamento da mensagem se o workflow falhar
           }
         }
