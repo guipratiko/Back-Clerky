@@ -5,11 +5,11 @@
  * - $firstName - Primeiro nome
  * - $lastName - Último nome
  * - $fullName - Nome completo
- * - $formattedPhone - Número formatado (ex: (62) 99844-8536)
+ * - $formattedPhone - Número formatado (ex: (62)9 9844-8536)
  * - $originalPhone - Número original/normalizado (ex: 5562998448536)
  */
 
-import { formatPhoneForDisplay } from './numberNormalizer';
+import { formatBrazilianPhone } from './numberNormalizer';
 
 export interface ContactData {
   phone: string; // Número normalizado (ex: 5562998448536)
@@ -68,7 +68,7 @@ export const replaceVariables = (
   const firstName = getFirstName(contactName);
   const lastName = getLastName(contactName);
   const fullName = contactName;
-  const formattedPhone = contact.formattedPhone || formatPhoneForDisplay(contact.phone);
+  const formattedPhone = contact.formattedPhone || formatBrazilianPhone(contact.phone);
   const originalPhone = contact.phone;
 
   // Mapa de variáveis para valores (variáveis padrão do contato)
