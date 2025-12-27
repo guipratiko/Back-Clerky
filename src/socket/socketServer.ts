@@ -133,9 +133,11 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
       console.log(`📤 [Socket] Re-emitindo atualização de disparo para usuário ${userIdStr}`);
       
       // Re-emitir para o frontend na sala do usuário
-      io.to(userIdStr).emit('dispatch-updated', {
-        dispatch: data.dispatch,
-      });
+      if (io) {
+        io.to(userIdStr).emit('dispatch-updated', {
+          dispatch: data.dispatch,
+        });
+      }
     });
 
     socket.on('disconnect', () => {

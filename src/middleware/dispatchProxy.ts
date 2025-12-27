@@ -123,21 +123,23 @@ async function proxyRequest(
       // Se o microserviço não estiver rodando
       if (axiosError.code === 'ECONNREFUSED') {
         console.error(`❌ [Proxy] Microserviço não está rodando em ${DISPATCH_SERVICE_URL}`);
-        return res.status(503).json({
+        res.status(503).json({
           status: 'error',
           message: 'Serviço de disparos temporariamente indisponível',
         });
+        return;
       }
 
       // Retornar erro do microserviço
       if (axiosError.response) {
         console.error(`❌ [Proxy] Erro do microserviço:`, axiosError.response.status, axiosError.response.data);
-        return res.status(axiosError.response.status).json(axiosError.response.data);
+        res.status(axiosError.response.status).json(axiosError.response.data);
+        return;
       }
     }
 
     console.error(`❌ [Proxy] Erro genérico:`, error);
-    return res.status(500).json({
+    res.status(500).json({
       status: 'error',
       message: 'Erro ao processar requisição',
     });
