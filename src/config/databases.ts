@@ -43,10 +43,6 @@ export const pgPool = new Pool({
 });
 
 // Event listeners para PostgreSQL
-pgPool.on('connect', () => {
-  console.log('✅ Nova conexão PostgreSQL estabelecida');
-});
-
 pgPool.on('error', (err) => {
   console.error('❌ Erro inesperado no pool PostgreSQL:', err);
 });
@@ -88,14 +84,6 @@ export const redisClient = new Redis(REDIS_CONFIG.URI, {
 });
 
 // Event listeners para Redis
-redisClient.on('connect', () => {
-  console.log('✅ Conectado ao Redis');
-});
-
-redisClient.on('ready', () => {
-  console.log('✅ Redis pronto para uso');
-});
-
 redisClient.on('error', (err) => {
   console.error('❌ Erro no Redis:', err);
 });

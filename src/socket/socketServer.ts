@@ -24,7 +24,10 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
     const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
 
     if (!token) {
-      return next(new Error('Token não fornecido'));
+      // Permitir conexão sem token para microserviços internos (ex: disparo-clerky)
+      // Eles podem emitir eventos, mas não receber eventos de usuários
+      socket.userId = undefined;
+      return next();
     }
 
     try {
@@ -118,6 +121,23 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
       }
     });
 
+    // Listener para eventos do microserviço de disparos
+    // O microserviço emite 'dispatch-updated' e o backend principal re-emite para o frontend
+    // Apenas sockets sem userId (microserviços) podem emitir este evento
+    socket.on('dispatch-updated', (data: { userId: string; dispatch: any }) => {
+      if (!data.userId || !data.dispatch) {
+        return;
+      }
+
+      const userIdStr = data.userId.toString();
+      console.log(`📤 [Socket] Re-emitindo atualização de disparo para usuário ${userIdStr}`);
+      
+      // Re-emitir para o frontend na sala do usuário
+      io.to(userIdStr).emit('dispatch-updated', {
+        dispatch: data.dispatch,
+      });
+    });
+
     socket.on('disconnect', () => {
       console.log(`❌ Cliente desconectado: ${socket.id}`);
     });
@@ -131,34 +151,6 @@ export const getIO = (): SocketServer => {
     throw new Error('Socket.io não foi inicializado');
   }
   return io;
-};
-
-/**
- * Emitir evento de atualização de disparo para o usuário
- */
-export const emitDispatchUpdate = (userId: string, dispatch: any): void => {
-  if (!io) {
-    return;
-  }
-
-  const userIdStr = userId.toString();
-  console.log(`📤 Emitindo atualização de disparo para usuário ${userIdStr}: ${dispatch.id} -> status ${dispatch.status}`);
-  
-  io.to(userIdStr).emit('dispatch-updated', {
-    dispatch: {
-      id: dispatch.id,
-      name: dispatch.name,
-      status: dispatch.status,
-      stats: dispatch.stats,
-      settings: dispatch.settings,
-      schedule: dispatch.schedule,
-      defaultName: dispatch.defaultName,
-      createdAt: dispatch.createdAt,
-      startedAt: dispatch.startedAt,
-      completedAt: dispatch.completedAt,
-      updatedAt: dispatch.updatedAt,
-    },
-  });
 };
 
 /**

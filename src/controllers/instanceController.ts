@@ -374,13 +374,7 @@ export const deleteInstance = async (
         // Deletar em ordem para respeitar foreign keys
         // Ordem: deletar tabelas dependentes primeiro, depois as principais
         
-        // 1. dispatch_jobs (depende de dispatches - será deletado via CASCADE, mas deletamos diretamente por segurança)
-        await client.query('DELETE FROM dispatch_jobs WHERE dispatch_id IN (SELECT id FROM dispatches WHERE instance_id = $1)', [instanceId]);
-        
-        // 2. dispatches
-        await client.query('DELETE FROM dispatches WHERE instance_id = $1', [instanceId]);
-        
-        // 3. workflow_contacts (depende de workflows - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)
+        // 1. workflow_contacts (depende de workflows - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)
         await client.query('DELETE FROM workflow_contacts WHERE instance_id = $1', [instanceId]);
         
         // 4. openai_memory (depende de workflows - será deletado via CASCADE, mas deletamos diretamente por instance_id para garantir)

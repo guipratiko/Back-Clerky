@@ -7,6 +7,7 @@ export interface IUser extends Document {
   profilePicture?: string;
   companyName?: string;
   phone?: string;
+  timezone?: string; // Fuso horário do usuário (ex: 'America/Sao_Paulo', 'America/New_York')
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,11 @@ const UserSchema: Schema = new Schema(
       type: String,
       trim: true,
       default: null,
+    },
+    timezone: {
+      type: String,
+      trim: true,
+      default: 'America/Sao_Paulo', // Fuso horário padrão: São Paulo
     },
   },
   {

@@ -7,7 +7,6 @@ import { AuthRequest } from '../middleware/auth';
 import Instance from '../models/Instance';
 import { ContactService } from '../services/contactService';
 import { MessageService } from '../services/messageService';
-import { DispatchService } from '../services/dispatchService';
 import { WorkflowService } from '../services/workflowService';
 import { AIAgentService } from '../services/aiAgentService';
 import { pgPool } from '../config/databases';
@@ -33,7 +32,7 @@ export const getDashboardStats = async (
     }
 
     // Buscar estatísticas em paralelo
-    const [instances, contactsCount, dispatches, workflows, aiAgents, contactsByColumn, recentMessages, recentContacts, groupsCount] = await Promise.all([
+    const [instances, contactsCount, workflows, aiAgents, contactsByColumn, recentMessages, recentContacts, groupsCount] = await Promise.all([
       // Instâncias
       Instance.find({ userId }).lean(),
 
@@ -42,9 +41,6 @@ export const getDashboardStats = async (
         'SELECT COUNT(*) as count FROM contacts WHERE user_id = $1',
         [userId]
       ),
-
-      // Disparos
-      DispatchService.getByUserId(userId),
 
       // Workflows
       WorkflowService.getWorkflowsByUserId(userId),
@@ -97,14 +93,14 @@ export const getDashboardStats = async (
       error: instances.filter((i) => i.status === 'error').length,
     };
 
-    // Processar disparos
+    // Processar disparos (removido - agora é microserviço separado)
     const dispatchesStats = {
-      total: dispatches.length,
-      pending: dispatches.filter((d) => d.status === 'pending').length,
-      running: dispatches.filter((d) => d.status === 'running').length,
-      completed: dispatches.filter((d) => d.status === 'completed').length,
-      failed: dispatches.filter((d) => d.status === 'failed').length,
-      paused: dispatches.filter((d) => d.status === 'paused').length,
+      total: 0,
+      pending: 0,
+      running: 0,
+      completed: 0,
+      failed: 0,
+      paused: 0,
     };
 
     // Processar contatos por coluna
@@ -133,17 +129,8 @@ export const getDashboardStats = async (
       createdAt: row.created_at,
     }));
 
-    // Últimos disparos (ordenados por data de criação)
-    const recentDispatches = dispatches
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, 10)
-      .map((d) => ({
-        id: d.id,
-        name: d.name,
-        status: d.status,
-        stats: d.stats,
-        createdAt: d.createdAt.toISOString(),
-      }));
+    // Últimos disparos (removido - agora é microserviço separado)
+    const recentDispatches: any[] = [];
 
     res.status(200).json({
       status: 'success',

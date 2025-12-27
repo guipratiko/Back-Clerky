@@ -63,6 +63,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         profilePicture: user.profilePicture,
         companyName: user.companyName,
         phone: user.phone,
+        timezone: user.timezone || 'America/Sao_Paulo',
       },
     });
   } catch (error: unknown) {
@@ -113,6 +114,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         profilePicture: user.profilePicture,
         companyName: user.companyName,
         phone: user.phone,
+        timezone: user.timezone || 'America/Sao_Paulo',
       },
     });
   } catch (error: unknown) {
@@ -153,6 +155,7 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
         profilePicture: user.profilePicture,
         companyName: user.companyName,
         phone: user.phone,
+        timezone: user.timezone || 'America/Sao_Paulo',
       },
     });
   } catch (error: unknown) {
@@ -169,7 +172,7 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
       return next(createUnauthorizedError('Usuário não autenticado'));
     }
 
-    const { name, profilePicture, companyName, phone } = req.body;
+    const { name, profilePicture, companyName, phone, timezone } = req.body;
 
     // Buscar usuário
     const user = await User.findById(userId);
@@ -200,6 +203,22 @@ export const updateProfile = async (req: AuthRequest, res: Response, next: NextF
       // Normalizar telefone com DDI
       const normalized = phone?.trim() ? normalizePhone(phone.trim(), '55') : null;
       user.phone = normalized || undefined;
+    }
+
+    if (timezone !== undefined) {
+      // Validar timezone (formato IANA, ex: 'America/Sao_Paulo')
+      if (timezone && timezone.trim()) {
+        // Validar se é um timezone válido tentando criar uma data
+        try {
+          // Verificar se o timezone é válido
+          Intl.DateTimeFormat(undefined, { timeZone: timezone.trim() });
+          user.timezone = timezone.trim();
+        } catch {
+          return next(createValidationError('Fuso horário inválido'));
+        }
+      } else {
+        user.timezone = 'America/Sao_Paulo'; // Default
+      }
     }
 
     await user.save();

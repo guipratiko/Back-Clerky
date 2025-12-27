@@ -67,7 +67,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       instances: '/api/instances',
       crm: '/api/crm',
-      dispatches: '/api/dispatches',
+      dispatches: '/api/dispatches (proxy para microserviço)',
       workflows: '/api/workflows',
       webhook: '/webhook/api/:instanceName',
     },
@@ -89,13 +89,6 @@ initializeSocket(httpServer);
 // Iniciar verificador de status periódico
 startStatusChecker();
 
-// Inicializar scheduler de disparos (aguardar para retomar disparos em execução)
-import { startScheduler } from './queue/scheduler';
-startScheduler().then(() => {
-  console.log('✅ Scheduler de disparos iniciado');
-}).catch((error) => {
-  console.error('❌ Erro ao iniciar scheduler de disparos:', error);
-});
 
 // Iniciar servidor
 httpServer.listen(PORT, () => {
