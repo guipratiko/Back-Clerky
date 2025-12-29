@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import User from '../models/User';
 import { normalizeName } from '../utils/formatters';
 import { normalizePhone } from '../utils/numberNormalizer';
 import { cleanCPF, isValidCPF } from '../utils/cpfValidator';
 import { AuthRequest } from '../middleware/auth';
 import { JWT_CONFIG } from '../config/constants';
+import { sendPasswordResetEmail } from '../services/emailService';
 import {
   createValidationError,
   createUnauthorizedError,
@@ -306,6 +308,105 @@ export const changePassword = async (req: AuthRequest, res: Response, next: Next
     });
   } catch (error: unknown) {
     return next(handleControllerError(error, 'Erro ao alterar senha'));
+  }
+};
+
+// Solicitar recuperação de senha
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = req.body;
+
+    // Validação
+    if (!email) {
+      return next(createValidationError('Email é obrigatório'));
+    }
+
+    // Buscar usuário
+    const user = await User.findOne({ email });
+
+    // Por segurança, sempre retornar sucesso mesmo se o email não existir
+    // Isso previne enumeração de emails
+    if (!user) {
+      return res.status(200).json({
+        status: 'success',
+        message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha',
+      });
+    }
+
+    // Gerar token de reset
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    // Salvar token e data de expiração (1 hora)
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    await user.save({ validateBeforeSave: false });
+
+    // Enviar email
+    try {
+      await sendPasswordResetEmail(user.email, user.name, resetToken);
+    } catch (error) {
+      // Se falhar ao enviar email, limpar o token
+      user.resetPasswordToken = undefined;
+      user.resetPasswordTokenExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      return next(handleControllerError(error, 'Erro ao enviar email de recuperação'));
+    }
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Se o email estiver cadastrado, você receberá um link para redefinir sua senha',
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao processar solicitação de recuperação de senha'));
+  }
+};
+
+// Redefinir senha
+export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, password } = req.body;
+
+    // Validação
+    if (!token || !password) {
+      return next(createValidationError('Token e senha são obrigatórios'));
+    }
+
+    if (password.length < 6) {
+      return next(createValidationError('Senha deve ter no mínimo 6 caracteres'));
+    }
+
+    // Hash do token recebido
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    // Buscar usuário com token válido e não expirado
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordTokenExpires: { $gt: new Date() },
+    }).select('+resetPasswordToken');
+
+    if (!user) {
+      return next(createUnauthorizedError('Token inválido ou expirado'));
+    }
+
+    // Hash da nova senha
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Atualizar senha e limpar token
+    user.password = hashedPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordTokenExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Senha redefinida com sucesso',
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao redefinir senha'));
   }
 };
 

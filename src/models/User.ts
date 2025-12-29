@@ -12,6 +12,8 @@ export interface IUser extends Document {
   isPremium: boolean; // Plano premium
   activationToken?: string; // Token para ativação de conta (pré-cadastro)
   activationTokenExpires?: Date; // Data de expiração do token de ativação
+  resetPasswordToken?: string; // Token para recuperação de senha
+  resetPasswordTokenExpires?: Date; // Data de expiração do token de recuperação
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +76,15 @@ const UserSchema: Schema = new Schema(
       select: false, // Não retornar token por padrão
     },
     activationTokenExpires: {
+      type: Date,
+      default: null,
+    },
+    resetPasswordToken: {
+      type: String,
+      default: null,
+      select: false, // Não retornar token por padrão
+    },
+    resetPasswordTokenExpires: {
       type: Date,
       default: null,
     },
