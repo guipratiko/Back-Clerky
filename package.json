@@ -47,6 +47,7 @@
     "nodemailer": "^7.0.12",
     "pg": "^8.11.3",
     "socket.io": "^4.8.1",
+    "typescript": "^5.3.3",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
@@ -57,7 +58,6 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/node": "^20.10.5",
     "@types/pg": "^8.10.9",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "ts-node-dev": "^2.0.0"
   }
 }
