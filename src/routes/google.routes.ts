@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 import {
   googleAuth,
   googleAuthCallback,
@@ -13,8 +13,8 @@ const router = Router();
 // Rota pública para callback do OAuth
 router.get('/auth/callback', googleAuthCallback);
 
-// Rotas protegidas
-router.use(protect);
+// Rotas protegidas - requerem autenticação e plano premium
+router.use(protect, requirePremium);
 router.get('/auth', googleAuth);
 router.get('/test', testGoogleConnection);
 router.post('/spreadsheet', createSpreadsheet);

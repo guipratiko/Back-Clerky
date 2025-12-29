@@ -43,6 +43,13 @@ export const createConflictError = (message: string): AppError => {
 };
 
 /**
+ * Cria um AppError de acesso proibido (forbidden)
+ */
+export const createForbiddenError = (message: string = 'Acesso negado'): AppError => {
+  return createAppError(message, 403, 'forbidden');
+};
+
+/**
  * Trata erros de catch de forma consistente
  */
 export const handleControllerError = (error: unknown, defaultMessage: string = 'Erro ao processar requisição'): AppError => {

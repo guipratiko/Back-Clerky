@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 import {
   getWorkflows,
   getWorkflow,
@@ -16,8 +16,8 @@ const router = Router();
 // Rota pública para webhook do Typebot (não requer autenticação)
 router.post('/webhook/typebot/:nodeId', receiveTypebotWebhook);
 
-// Todas as outras rotas requerem autenticação
-router.use(protect);
+// Todas as outras rotas requerem autenticação e plano premium
+router.use(protect, requirePremium);
 
 // Rotas de workflows
 router.get('/', getWorkflows);

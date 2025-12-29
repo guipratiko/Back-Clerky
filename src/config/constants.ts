@@ -80,6 +80,23 @@ export const TRANSCRIPTION_CONFIG = {
 
 // MindClerky Configuration (Microserviço de Workflows)
 export const MINDLERKY_CONFIG = {
-  URL: process.env.MINDLERKY_URL || 'http://localhost:4333/api',
+  URL: process.env.MINDLERKY_URL || 'https://mdc.clerky.com.br/api',
+};
+
+// Premium Webhook Configuration
+export const PREMIUM_WEBHOOK_CONFIG = {
+  SECRET: process.env.PREMIUM_WEBHOOK_SECRET || 'GreSD324FDw32D43tbf2dFr',
+};
+
+// Email Configuration
+export const EMAIL_CONFIG = {
+  SMTP_HOST: process.env.SMTP_HOST || 'smtp.umbler.com',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+  SMTP_USER: process.env.SMTP_USER || 'contato@clerky.com.br',
+  SMTP_PASS: process.env.SMTP_PASS || '@clerky!@',
+  FROM_EMAIL: process.env.FROM_EMAIL || 'contato@clerky.com.br',
+  FROM_NAME: process.env.FROM_NAME || 'Clerky',
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  LOGO_URL: process.env.EMAIL_LOGO_URL || 'https://clerky.com.br/logo.png',
 };
 

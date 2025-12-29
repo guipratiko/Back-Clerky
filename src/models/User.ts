@@ -4,10 +4,14 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
+  cpf: string; // CPF (apenas números, único)
   profilePicture?: string;
   companyName?: string;
   phone?: string;
   timezone?: string; // Fuso horário do usuário (ex: 'America/Sao_Paulo', 'America/New_York')
+  isPremium: boolean; // Plano premium
+  activationToken?: string; // Token para ativação de conta (pré-cadastro)
+  activationTokenExpires?: Date; // Data de expiração do token de ativação
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +38,13 @@ const UserSchema: Schema = new Schema(
       minlength: [6, 'Senha deve ter no mínimo 6 caracteres'],
       select: false, // Não retornar senha por padrão
     },
+    cpf: {
+      type: String,
+      required: [true, 'CPF é obrigatório'],
+      unique: true,
+      trim: true,
+      match: [/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'],
+    },
     profilePicture: {
       type: String,
       default: null,
@@ -52,6 +63,19 @@ const UserSchema: Schema = new Schema(
       type: String,
       trim: true,
       default: 'America/Sao_Paulo', // Fuso horário padrão: São Paulo
+    },
+    isPremium: {
+      type: Boolean,
+      default: false, // Padrão: plano gratuito
+    },
+    activationToken: {
+      type: String,
+      default: null,
+      select: false, // Não retornar token por padrão
+    },
+    activationTokenExpires: {
+      type: Date,
+      default: null,
     },
   },
   {
