@@ -15,6 +15,7 @@
     "drop-tables": "ts-node-dev --transpile-only src/scripts/dropCrmTables.ts",
     "drop-all": "ts-node-dev --transpile-only src/scripts/dropAllTables.ts",
     "reset-db": "ts-node-dev --transpile-only src/scripts/resetDatabase.ts",
+    "delete-users": "ts-node-dev --transpile-only src/scripts/deleteAllUsers.ts",
     "kill": "bash scripts/kill-server.sh"
   },
   "keywords": [
@@ -28,6 +29,8 @@
     "@types/bull": "^3.15.9",
     "@types/form-data": "^2.2.1",
     "@types/multer": "^2.0.0",
+    "@types/nodemailer": "^7.0.4",
+    "@types/uuid": "^10.0.0",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
@@ -41,8 +44,10 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^2.0.2",
+    "nodemailer": "^7.0.12",
     "pg": "^8.11.3",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

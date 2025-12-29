@@ -6,16 +6,18 @@ import {
   updateInstanceSettings,
   deleteInstance,
 } from '../controllers/instanceController';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 
 const router = Router();
 
-// Todas as rotas requerem autenticação
-router.post('/', protect, createInstance);
-router.get('/', protect, getInstances);
-router.get('/:id', protect, getInstance);
-router.put('/:id/settings', protect, updateInstanceSettings);
-router.delete('/:id', protect, deleteInstance);
+// Todas as rotas requerem autenticação e plano premium
+router.use(protect, requirePremium);
+
+router.post('/', createInstance);
+router.get('/', getInstances);
+router.get('/:id', getInstance);
+router.put('/:id/settings', updateInstanceSettings);
+router.delete('/:id', deleteInstance);
 
 export default router;
 

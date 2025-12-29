@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 import {
   createAIAgent,
   getAIAgents,
@@ -15,8 +15,8 @@ const router = Router();
 // Rota pública para callback de transcrição
 router.post('/transcription-callback', transcriptionCallback);
 
-// Todas as outras rotas requerem autenticação
-router.use(protect);
+// Todas as outras rotas requerem autenticação e plano premium
+router.use(protect, requirePremium);
 
 // Rotas de agentes
 router.post('/', createAIAgent);

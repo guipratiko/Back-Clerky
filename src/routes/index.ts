@@ -8,17 +8,20 @@ import googleRoutes from './google.routes';
 import aiAgentRoutes from './aiAgent.routes';
 import groupRoutes from './group.routes';
 import dashboardRoutes from './dashboard.routes';
+import premiumWebhookRoutes from './premiumWebhook.routes';
 import { dispatchProxy } from '../middleware/dispatchProxy';
+import { protect, requirePremium } from '../middleware/auth';
 
 const router = Router();
 
 // Rotas
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
+router.use('/webhook', premiumWebhookRoutes); // Webhook de compra premium (público)
 router.use('/instances', instanceRoutes);
 router.use('/crm', crmRoutes);
-// Proxy para microserviço de disparos
-router.use('/dispatches', dispatchProxy);
+// Proxy para microserviço de disparos - requer autenticação e plano premium
+router.use('/dispatches', protect, requirePremium, dispatchProxy);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { normalizeName } from '../utils/formatters';
 import { normalizePhone } from '../utils/numberNormalizer';
+import { cleanCPF, isValidCPF } from '../utils/cpfValidator';
 import { AuthRequest } from '../middleware/auth';
 import { JWT_CONFIG } from '../config/constants';
 import {
@@ -64,6 +65,8 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         companyName: user.companyName,
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
+        isPremium: user.isPremium || false,
+        cpf: user.cpf,
       },
     });
   } catch (error: unknown) {
@@ -74,17 +77,28 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 // Registro
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, cpf } = req.body;
 
     // Validação
-    if (!name || !email || !password) {
-      return next(createValidationError('Nome, email e senha são obrigatórios'));
+    if (!name || !email || !password || !cpf) {
+      return next(createValidationError('Nome, email, senha e CPF são obrigatórios'));
     }
 
-    // Verificar se usuário já existe
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Validar CPF
+    const cleanCpf = cleanCPF(cpf);
+    if (!isValidCPF(cleanCpf)) {
+      return next(createValidationError('CPF inválido'));
+    }
+
+    // Verificar se usuário já existe (por email ou CPF)
+    const existingUserByEmail = await User.findOne({ email });
+    if (existingUserByEmail) {
       return next(createConflictError('Email já cadastrado'));
+    }
+
+    const existingUserByCpf = await User.findOne({ cpf: cleanCpf });
+    if (existingUserByCpf) {
+      return next(createConflictError('CPF já cadastrado'));
     }
 
     // Hash da senha
@@ -98,6 +112,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       name: normalizedName,
       email,
       password: hashedPassword,
+      cpf: cleanCpf,
     });
 
     // Gerar token
@@ -115,6 +130,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         companyName: user.companyName,
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
+        isPremium: user.isPremium || false,
+        cpf: user.cpf,
       },
     });
   } catch (error: unknown) {
@@ -156,6 +173,8 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
         companyName: user.companyName,
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
+        isPremium: user.isPremium || false,
+        cpf: user.cpf,
       },
     });
   } catch (error: unknown) {

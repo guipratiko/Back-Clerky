@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 import {
   getAllGroups,
   leaveGroup,
@@ -17,8 +17,8 @@ import {
 
 const router = Router();
 
-// Todas as rotas requerem autenticação
-router.use(protect);
+// Todas as rotas requerem autenticação e plano premium
+router.use(protect, requirePremium);
 
 router.get('/', getAllGroups);
 router.get('/invite-code', getInviteCode);

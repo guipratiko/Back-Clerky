@@ -13,12 +13,12 @@ import {
   removeLabelFromContact,
 } from '../controllers/labelController';
 import { getMessages, sendMessage, sendMedia, sendAudio, uploadMedia } from '../controllers/messageController';
-import { protect } from '../middleware/auth';
+import { protect, requirePremium } from '../middleware/auth';
 
 const router = Router();
 
-// Todas as rotas requerem autenticação
-router.use(protect);
+// Todas as rotas requerem autenticação e plano premium
+router.use(protect, requirePremium);
 
 // Rotas de Colunas
 router.get('/columns', getColumns);
