@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
+    "build": "npx tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "ts-node-dev --transpile-only src/scripts/runMigrations.ts",
     "migrate:openai": "ts-node-dev --transpile-only src/scripts/runOpenAIMigration.ts",
