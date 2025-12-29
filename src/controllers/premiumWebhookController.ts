@@ -53,10 +53,11 @@ export const receivePremiumWebhook = async (
 
     // Validar status e evento
     if (body.status !== 'aprovado' || body.evento !== 'OrderPaid') {
-      return res.status(200).json({
+      res.status(200).json({
         status: 'success',
         message: 'Webhook recebido, mas status não é "aprovado" ou evento não é "OrderPaid". Ignorando.',
       });
+      return;
     }
 
     // Limpar e validar CPF
@@ -85,7 +86,7 @@ export const receivePremiumWebhook = async (
 
       console.log(`✅ Usuário ${existingUser.email} atualizado para Premium (CPF: ${cleanCpf})`);
 
-      return res.status(200).json({
+      res.status(200).json({
         status: 'success',
         message: 'Usuário atualizado para Premium',
         user: {
@@ -95,6 +96,7 @@ export const receivePremiumWebhook = async (
           isPremium: existingUser.isPremium,
         },
       });
+      return;
     }
 
     // Usuário não existe: criar pré-cadastro
@@ -129,7 +131,7 @@ export const receivePremiumWebhook = async (
       // Não falhar o webhook se o email falhar, apenas logar
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       status: 'success',
       message: 'Pré-cadastro criado com sucesso. Email de ativação enviado.',
       user: {

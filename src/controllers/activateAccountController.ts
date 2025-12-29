@@ -40,7 +40,7 @@ export const validateActivationToken = async (
       return next(createNotFoundError('Token de ativação inválido ou expirado'));
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       status: 'success',
       user: {
         name: user.name,
@@ -100,7 +100,7 @@ export const activateAccount = async (
 
     console.log(`✅ Conta ativada para ${user.email}`);
 
-    return res.status(200).json({
+    res.status(200).json({
       status: 'success',
       message: 'Conta ativada com sucesso',
       token: jwtToken,
