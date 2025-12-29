@@ -100,3 +100,12 @@ export const EMAIL_CONFIG = {
   LOGO_URL: process.env.EMAIL_LOGO_URL || 'https://clerky.com.br/logo.png',
 };
 
+// Apple Configuration (APNs e In-App Purchase)
+export const APPLE_CONFIG = {
+  KEY_ID: process.env.APPLE_KEY_ID || '64A38GH33A',
+  TEAM_ID: process.env.APPLE_TEAM_ID || '3729ecba-5285-4d4b-8811-d0f4d844035b',
+  KEY_PATH: process.env.APPLE_KEY_PATH || './src/SubscriptionKey_64A38GH33A.p8',
+  BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'com.br.clerky.clerky',
+  SHARED_SECRET: process.env.APPLE_SHARED_SECRET || '', // Opcional para validação de receipts
+};
+
