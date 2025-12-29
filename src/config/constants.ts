@@ -80,7 +80,7 @@ export const TRANSCRIPTION_CONFIG = {
 
 // MindClerky Configuration (Microserviço de Workflows)
 export const MINDLERKY_CONFIG = {
-  URL: process.env.MINDLERKY_URL || 'https://mdc.clerky.com.br/api',
+  URL: process.env.MINDLERKY_URL || 'http://localhost:4333/api',
 };
 
 // Premium Webhook Configuration
