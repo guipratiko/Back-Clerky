@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface ISubscription extends Document {
   userId: mongoose.Types.ObjectId;
-  source: 'apple' | 'appmax'; // Origem da assinatura
+  source: 'apple' | 'appmax' | 'google'; // Origem da assinatura
   productId: string; // ID do produto (ex: com.br.clerky.clerky.premium.test.m1)
   transactionId: string; // ID da transação (único)
   originalTransactionId?: string; // ID da transação original (para renovações)
@@ -33,7 +33,7 @@ const SubscriptionSchema: Schema = new Schema(
     },
     source: {
       type: String,
-      enum: ['apple', 'appmax'],
+      enum: ['apple', 'appmax', 'google'],
       required: [true, 'Origem da assinatura é obrigatória'],
     },
     productId: {

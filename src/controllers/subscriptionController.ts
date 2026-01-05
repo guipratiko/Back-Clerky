@@ -7,6 +7,7 @@ import {
 } from '../utils/errorHelpers';
 import {
   validateAppleSubscription,
+  validateGoogleSubscription,
   getActiveSubscription,
 } from '../services/subscriptionService';
 import DeviceToken from '../models/DeviceToken';
@@ -24,7 +25,7 @@ export const validateSubscription = async (
 ): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const { receiptData, productId, transactionId } = req.body;
+    const { receiptData, productId, transactionId, source } = req.body;
 
     if (!userId) {
       return next(createValidationError('Usuário não autenticado'));
@@ -34,6 +35,43 @@ export const validateSubscription = async (
       return next(createValidationError('productId é obrigatório'));
     }
 
+    // Detectar fonte da assinatura (apple, google, ou auto-detect)
+    const subscriptionSource = source || detectSubscriptionSource(receiptData, transactionId);
+
+    // Validar Google Play
+    if (subscriptionSource === 'google') {
+      if (!receiptData || !transactionId) {
+        return next(createValidationError('receiptData (purchaseToken) e transactionId (orderId) são obrigatórios para Google Play'));
+      }
+
+      const subscription = await validateGoogleSubscription({
+        purchaseToken: receiptData,
+        productId,
+        userId,
+        orderId: transactionId,
+      });
+
+      const user = await User.findById(userId).select('isPremium email name');
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Assinatura Google Play validada com sucesso',
+        subscription: {
+          id: subscription._id,
+          productId: subscription.productId,
+          status: subscription.status,
+          expiresAt: subscription.expiresAt,
+          purchasedAt: subscription.purchasedAt,
+        },
+        user: user ? {
+          id: user._id,
+          isPremium: user.isPremium,
+        } : undefined,
+      });
+      return;
+    }
+
+    // Validar Apple (código existente)
     // Se não tiver receiptData mas tiver transactionId, validar pela transação
     if (!receiptData && transactionId) {
       return validateByTransactionId(req, res, next, userId, transactionId, productId);
@@ -71,6 +109,29 @@ export const validateSubscription = async (
     return next(handleControllerError(error, 'Erro ao validar assinatura'));
   }
 };
+
+/**
+ * Detectar fonte da assinatura automaticamente
+ */
+function detectSubscriptionSource(receiptData?: string, transactionId?: string): 'apple' | 'google' {
+  // Se não tiver dados, assume Apple (compatibilidade com código existente)
+  if (!receiptData && !transactionId) {
+    return 'apple';
+  }
+
+  // Google Play purchase tokens geralmente começam com caracteres alfanuméricos
+  // e são diferentes de receipts base64 da Apple
+  // Uma heurística simples: se transactionId existe e receiptData não parece base64 de receipt da Apple
+  if (transactionId && receiptData) {
+    // Purchase tokens do Google são geralmente mais curtos e não começam com padrão específico
+    // Receipts da Apple em base64 são muito longos
+    // Por enquanto, se tiver transactionId explícito, assume Google (Android envia orderId)
+    // Mas melhor deixar o cliente especificar 'source'
+    return 'apple'; // Default para compatibilidade
+  }
+
+  return 'apple';
+}
 
 /**
  * Validar assinatura apenas pela transactionId (quando receipt não está disponível)

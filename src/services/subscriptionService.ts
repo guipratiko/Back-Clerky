@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { google } from 'googleapis';
 import Subscription, { ISubscription } from '../models/Subscription';
 import User from '../models/User';
 
@@ -30,9 +31,17 @@ interface AppleReceiptValidationResponse {
 }
 
 interface ValidateSubscriptionRequest {
-  receiptData: string; // Base64 receipt
+  receiptData: string; // Base64 receipt (Apple) ou purchaseToken (Google)
   productId: string;
   userId: string;
+  transactionId?: string; // orderId para Google Play
+}
+
+interface ValidateGoogleSubscriptionRequest {
+  purchaseToken: string;
+  productId: string;
+  userId: string;
+  orderId: string;
 }
 
 /**
@@ -146,6 +155,191 @@ export async function validateAppleSubscription(
   const user = await User.findById(userId);
   if (user) {
     user.isPremium = status === 'active';
+    await user.save();
+  }
+
+  return subscription;
+}
+
+/**
+ * Validar assinatura do Google Play
+ */
+export async function validateGoogleSubscription(
+  data: ValidateGoogleSubscriptionRequest
+): Promise<ISubscription> {
+  const { purchaseToken, productId, userId, orderId } = data;
+  const packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.clerky.android';
+
+  try {
+    // Se tiver service account configurado, usar Google Play Developer API
+    if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY) {
+      return await validateGoogleSubscriptionWithAPI(data, packageName);
+    } else {
+      // Validação básica sem API (confia no token do cliente)
+      // Em produção, sempre usar a API
+      console.warn('⚠️ Google Play Service Account não configurado. Usando validação básica.');
+      return await validateGoogleSubscriptionBasic(data);
+    }
+  } catch (error: any) {
+    console.error('Erro ao validar assinatura Google Play:', error);
+    throw new Error(`Erro ao validar assinatura Google Play: ${error.message}`);
+  }
+}
+
+/**
+ * Validar usando Google Play Developer API (recomendado)
+ */
+async function validateGoogleSubscriptionWithAPI(
+  data: ValidateGoogleSubscriptionRequest,
+  packageName: string
+): Promise<ISubscription> {
+  const { purchaseToken, productId, userId, orderId } = data;
+
+  try {
+    // Parse da service account key (JSON string)
+    const serviceAccountKey = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY!);
+    
+    // Criar cliente autenticado
+    const auth = new google.auth.GoogleAuth({
+      credentials: serviceAccountKey,
+      scopes: ['https://www.googleapis.com/auth/androidpublisher'],
+    });
+
+    const authClient = await auth.getClient();
+    const androidpublisher = google.androidpublisher({
+      version: 'v3',
+      auth: authClient as any,
+    });
+
+    // Validar subscription
+    const response = await androidpublisher.purchases.subscriptions.get({
+      packageName: packageName,
+      subscriptionId: productId,
+      token: purchaseToken,
+    });
+
+    const subscriptionPurchase = response.data;
+
+    if (!subscriptionPurchase) {
+      throw new Error('Resposta inválida da API do Google Play');
+    }
+
+    // Verificar status da assinatura
+    const paymentState = subscriptionPurchase.paymentState;
+    const expiryTimeMillis = subscriptionPurchase.expiryTimeMillis;
+
+    if (!expiryTimeMillis) {
+      throw new Error('Data de expiração não encontrada');
+    }
+
+    const expiresDate = new Date(parseInt(expiryTimeMillis));
+    const purchaseDate = subscriptionPurchase.startTimeMillis 
+      ? new Date(parseInt(subscriptionPurchase.startTimeMillis))
+      : new Date();
+
+    // Payment state: 0 = payment pending, 1 = payment received, 2 = free trial, 3 = pending deferred
+    // Cancel reason: 0 = user, 1 = system, 2 = replaced, 3 = developer
+    const cancelReason = subscriptionPurchase.cancelReason;
+    const autoRenewing = subscriptionPurchase.autoRenewing === true;
+
+    let status: 'active' | 'expired' | 'cancelled' | 'refunded' = 'active';
+    
+    if (cancelReason !== undefined && cancelReason !== null) {
+      status = 'cancelled';
+    } else if (expiresDate < new Date()) {
+      status = 'expired';
+    } else if (paymentState === 1 || paymentState === 2) {
+      status = 'active';
+    }
+
+    // Buscar ou criar assinatura
+    let subscription = await Subscription.findOne({
+      transactionId: orderId,
+      source: 'google',
+    });
+
+    const subscriptionData = {
+      userId: userId as any,
+      source: 'google' as const,
+      productId: productId,
+      transactionId: orderId,
+      originalTransactionId: orderId, // Para Google Play, orderId é a transação original
+      status: status,
+      expiresAt: expiresDate,
+      purchasedAt: purchaseDate,
+      cancelledAt: cancelReason !== undefined && cancelReason !== null ? new Date() : undefined,
+      receiptData: purchaseToken,
+      environment: 'Production' as const,
+    };
+
+    if (subscription) {
+      Object.assign(subscription, subscriptionData);
+      await subscription.save();
+    } else {
+      subscription = await Subscription.create(subscriptionData);
+    }
+
+    // Atualizar isPremium do usuário
+    const user = await User.findById(userId);
+    if (user) {
+      user.isPremium = status === 'active';
+      await user.save();
+    }
+
+    return subscription;
+  } catch (error: any) {
+    if (error.code === 410) {
+      // Subscription token expired or invalid
+      throw new Error('Token de assinatura expirado ou inválido');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Validação básica sem API (apenas para desenvolvimento/testes)
+ * Em produção, sempre usar validateGoogleSubscriptionWithAPI
+ */
+async function validateGoogleSubscriptionBasic(
+  data: ValidateGoogleSubscriptionRequest
+): Promise<ISubscription> {
+  const { purchaseToken, productId, userId, orderId } = data;
+
+  // Validação básica: assume que a compra é válida e cria assinatura
+  // Data de expiração: +30 dias da data atual (para subscriptions mensais)
+  const purchaseDate = new Date();
+  const expiresDate = new Date(purchaseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  // Buscar ou criar assinatura
+  let subscription = await Subscription.findOne({
+    transactionId: orderId,
+    source: 'google',
+  });
+
+  const subscriptionData = {
+    userId: userId as any,
+    source: 'google' as const,
+    productId: productId,
+    transactionId: orderId,
+    originalTransactionId: orderId,
+    status: 'active' as const,
+    expiresAt: expiresDate,
+    purchasedAt: purchaseDate,
+    receiptData: purchaseToken,
+    environment: 'Production' as const,
+  };
+
+  if (subscription) {
+    Object.assign(subscription, subscriptionData);
+    await subscription.save();
+  } else {
+    subscription = await Subscription.create(subscriptionData);
+  }
+
+  // Atualizar isPremium do usuário
+  const user = await User.findById(userId);
+  if (user) {
+    user.isPremium = true;
     await user.save();
   }
 
