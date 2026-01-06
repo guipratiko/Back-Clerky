@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { google } from 'googleapis';
+import * as fs from 'fs';
+import * as path from 'path';
 import Subscription, { ISubscription } from '../models/Subscription';
 import User from '../models/User';
 
@@ -172,7 +174,7 @@ export async function validateGoogleSubscription(
 
   try {
     // Se tiver service account configurado, usar Google Play Developer API
-    if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY) {
+    if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH) {
       return await validateGoogleSubscriptionWithAPI(data, packageName);
     } else {
       // Validação básica sem API (confia no token do cliente)
@@ -182,6 +184,12 @@ export async function validateGoogleSubscription(
     }
   } catch (error: any) {
     console.error('Erro ao validar assinatura Google Play:', error);
+    // Se o erro for de decodificação da chave, sugerir usar arquivo
+    if (error.code === 'ERR_OSSL_UNSUPPORTED' || error.message?.includes('DECODER')) {
+      console.error('💡 Dica: O formato da chave privada no .env pode estar incorreto.');
+      console.error('   Use GOOGLE_PLAY_SERVICE_ACCOUNT_PATH apontando para o arquivo JSON ao invés de GOOGLE_PLAY_SERVICE_ACCOUNT_KEY.');
+      throw new Error('Erro ao processar chave da Service Account. Use GOOGLE_PLAY_SERVICE_ACCOUNT_PATH com caminho do arquivo JSON.');
+    }
     throw new Error(`Erro ao validar assinatura Google Play: ${error.message}`);
   }
 }
@@ -196,8 +204,28 @@ async function validateGoogleSubscriptionWithAPI(
   const { purchaseToken, productId, userId, orderId } = data;
 
   try {
-    // Parse da service account key (JSON string)
-    const serviceAccountKey = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY!);
+    let serviceAccountKey: any;
+    
+    // Tentar carregar de arquivo primeiro (mais confiável)
+    if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH) {
+      const filePath = path.resolve(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PATH);
+      if (fs.existsSync(filePath)) {
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        serviceAccountKey = JSON.parse(fileContent);
+        console.log('✅ Service Account carregada de arquivo:', filePath);
+      } else {
+        throw new Error(`Arquivo da Service Account não encontrado: ${filePath}`);
+      }
+    } else if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY) {
+      // Tentar parsear da variável de ambiente
+      try {
+        serviceAccountKey = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_KEY);
+      } catch (parseError: any) {
+        throw new Error(`Erro ao parsear GOOGLE_PLAY_SERVICE_ACCOUNT_KEY: ${parseError.message}. Use GOOGLE_PLAY_SERVICE_ACCOUNT_PATH com caminho do arquivo JSON.`);
+      }
+    } else {
+      throw new Error('GOOGLE_PLAY_SERVICE_ACCOUNT_KEY ou GOOGLE_PLAY_SERVICE_ACCOUNT_PATH não configurado');
+    }
     
     // Criar cliente autenticado
     const auth = new google.auth.GoogleAuth({
