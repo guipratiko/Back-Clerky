@@ -407,3 +407,70 @@ export const broadcastPushToAllIOS = async (
   }
 };
 
+/**
+ * Enviar notificação promocional para todos os usuários iOS
+ * POST /api/subscriptions/push/promotional
+ * Campos opcionais: subtitle, sound, badge, imageUrl, deepLink, customData
+ */
+export const sendPromotionalPushToAllIOS = async (
+  req: AuthRequest | Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { 
+      title, 
+      body, 
+      subtitle,
+      sound, 
+      badge, 
+      imageUrl,
+      deepLink,
+      actionButton,
+      customData 
+    } = req.body;
+
+    if (!title || !body) {
+      return next(createValidationError('title e body são obrigatórios'));
+    }
+
+    // Construir payload APNs com suporte a campos promocionais
+    const payload: any = {
+      aps: {
+        alert: {
+          title,
+          body,
+          ...(subtitle && { subtitle }),
+        },
+        sound: sound || 'default',
+        badge: badge !== undefined ? badge : 1,
+        'content-available': 1, // Permite processamento em background
+        'mutable-content': imageUrl ? 1 : 0, // Permite modificação para imagens
+      },
+      type: 'promotional',
+      ...(imageUrl && { imageUrl }),
+      ...(deepLink && { deepLink }),
+      ...(actionButton && { actionButton }),
+      ...customData,
+    };
+
+    const result = await sendPushToAllIOSUsers(payload);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Notificação promocional enviada para ${result.success} dispositivos iOS`,
+      result: {
+        success: result.success,
+        failed: result.failed,
+        total: result.total,
+        percentageSuccess: result.total > 0 
+          ? Math.round((result.success / result.total) * 100) 
+          : 0,
+        errors: result.errors.slice(0, 10), // Limitar a 10 erros na resposta
+      },
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao enviar notificação promocional'));
+  }
+};
+
