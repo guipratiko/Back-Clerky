@@ -77,6 +77,14 @@ export async function sendPushNotification(
     : path.join(__dirname, '../../', APPLE_CONFIG.KEY_PATH);
   const bundleId = APPLE_CONFIG.BUNDLE_ID;
 
+  // Log das configurações sendo usadas
+  console.log('\n📋 Configurações APNs:');
+  console.log(`   Key ID: ${keyId}`);
+  console.log(`   Team ID: ${teamId} (${teamId.length} caracteres)`);
+  console.log(`   Bundle ID: ${bundleId}`);
+  console.log(`   Key Path: ${keyPath}`);
+  console.log(`   Key Path existe: ${fs.existsSync(keyPath)}`);
+
   // Verificar se o arquivo de chave existe
   if (!fs.existsSync(keyPath)) {
     throw new Error(`Arquivo de chave APNs não encontrado: ${keyPath}`);
@@ -91,7 +99,8 @@ export async function sendPushNotification(
     : `https://api.sandbox.push.apple.com/3/device/${deviceToken}`;
 
   console.log(`📤 Enviando push para: ${isProduction ? 'Production' : 'Sandbox'}`);
-  console.log(`🔑 Key ID: ${keyId}, Team ID: ${teamId}`);
+  console.log(`🔑 Key ID: ${keyId}`);
+  console.log(`👥 Team ID: ${teamId} (${teamId.length} caracteres)`);
   console.log(`📦 Bundle ID: ${bundleId}`);
   console.log(`🔗 URL: ${apnsUrl.substring(0, 50)}...`);
   console.log(`📝 Payload:`, JSON.stringify(payload, null, 2));

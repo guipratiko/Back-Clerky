@@ -18,6 +18,7 @@
     "delete-users": "ts-node-dev --transpile-only src/scripts/deleteAllUsers.ts",
     "test-promo": "ts-node-dev --transpile-only src/scripts/testPromotionalNotification.ts",
     "test-promo-user": "ts-node-dev --transpile-only src/scripts/testPromoToUser.ts",
+    "send-promo-api": "ts-node-dev --transpile-only src/scripts/sendPromoViaAPI.ts",
     "check-devices": "ts-node-dev --transpile-only src/scripts/checkDeviceTokens.ts",
     "kill": "bash scripts/kill-server.sh"
   },
