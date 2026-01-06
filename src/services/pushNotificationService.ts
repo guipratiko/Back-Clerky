@@ -252,6 +252,15 @@ export async function sendPromotionalNotificationToAll(
 
   const devices = await DeviceToken.find(query);
 
+  // Log para debug: mostrar quantos dispositivos foram encontrados e suas plataformas
+  console.log(`🔍 Dispositivos encontrados: ${devices.length}`);
+  const platformCounts = devices.reduce((acc: any, device: any) => {
+    const platform = device.platform || 'unknown';
+    acc[platform] = (acc[platform] || 0) + 1;
+    return acc;
+  }, {});
+  console.log(`📱 Distribuição por plataforma:`, platformCounts);
+
   // Se houver filtro de premium, buscar usuários e filtrar
   let filteredDevices = devices;
   if (filters?.isPremium !== undefined) {

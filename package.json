@@ -17,6 +17,8 @@
     "reset-db": "ts-node-dev --transpile-only src/scripts/resetDatabase.ts",
     "delete-users": "ts-node-dev --transpile-only src/scripts/deleteAllUsers.ts",
     "test-promo": "ts-node-dev --transpile-only src/scripts/testPromotionalNotification.ts",
+    "test-promo-user": "ts-node-dev --transpile-only src/scripts/testPromoToUser.ts",
+    "check-devices": "ts-node-dev --transpile-only src/scripts/checkDeviceTokens.ts",
     "kill": "bash scripts/kill-server.sh"
   },
   "keywords": [
