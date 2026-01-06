@@ -69,6 +69,11 @@ export async function sendPushNotification(
     : path.join(__dirname, '../../', APPLE_CONFIG.KEY_PATH);
   const bundleId = APPLE_CONFIG.BUNDLE_ID;
 
+  // Verificar se o arquivo de chave existe
+  if (!fs.existsSync(keyPath)) {
+    throw new Error(`Arquivo de chave APNs não encontrado: ${keyPath}`);
+  }
+
   // Gerar token de autenticação
   const authToken = generateAPNsToken(keyId, teamId, keyPath);
 
@@ -76,6 +81,11 @@ export async function sendPushNotification(
   const apnsUrl = isProduction
     ? `https://api.push.apple.com/3/device/${deviceToken}`
     : `https://api.sandbox.push.apple.com/3/device/${deviceToken}`;
+
+  console.log(`📤 Enviando push para: ${isProduction ? 'Production' : 'Sandbox'}`);
+  console.log(`🔑 Key ID: ${keyId}, Team ID: ${teamId}`);
+  console.log(`📦 Bundle ID: ${bundleId}`);
+  console.log(`🔗 URL: ${apnsUrl.substring(0, 50)}...`);
 
   try {
     const response = await axios.post<APNsResponse>(
@@ -90,14 +100,37 @@ export async function sendPushNotification(
           'Content-Type': 'application/json',
         },
         timeout: 10000,
+        validateStatus: (status) => status < 500, // Aceitar status < 500 para ver a resposta de erro do APNs
       }
     );
 
-    console.log(`✅ Push enviado com sucesso. APNs-ID: ${response.data['apns-id']}`);
+    if (response.status >= 200 && response.status < 300) {
+      console.log(`✅ Push enviado com sucesso. APNs-ID: ${response.data['apns-id']}`);
+    } else {
+      // APNs retornou erro
+      const apnsError = response.data as APNsResponse;
+      throw new Error(`APNs retornou erro ${response.status}: ${apnsError?.reason || 'Erro desconhecido'}`);
+    }
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      const apnsError = error.response?.data as APNsResponse;
-      throw new Error(`Erro ao enviar push: ${apnsError?.reason || error.message}`);
+      // Log detalhado do erro
+      console.error('❌ Erro detalhado do axios:');
+      console.error('   Code:', error.code);
+      console.error('   Message:', error.message);
+      console.error('   Response status:', error.response?.status);
+      console.error('   Response data:', error.response?.data);
+      
+      if (error.response?.data) {
+        const apnsError = error.response.data as APNsResponse;
+        throw new Error(`Erro ao enviar push: ${apnsError?.reason || error.message}`);
+      }
+      
+      // Se não há response, pode ser erro de conexão
+      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        throw new Error(`Erro de conexão: ${error.message}`);
+      }
+      
+      throw new Error(`Erro ao enviar push: ${error.message}`);
     }
     throw error;
   }
