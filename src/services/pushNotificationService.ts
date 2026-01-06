@@ -32,6 +32,12 @@ function generateAPNsToken(keyId: string, teamId: string, keyPath: string): stri
   try {
     const privateKey = fs.readFileSync(keyPath, 'utf8');
 
+    // Validar formato do Team ID (deve ser alfanumérico, não UUID)
+    // Se for UUID, pode ser que esteja errado, mas vamos tentar mesmo assim
+    if (teamId.includes('-') && teamId.length > 15) {
+      console.warn(`⚠️ Team ID parece ser um UUID (${teamId}). Team ID da Apple geralmente é um código de 10 caracteres.`);
+    }
+
     const token = jwt.sign(
       {
         iss: teamId,
@@ -48,9 +54,11 @@ function generateAPNsToken(keyId: string, teamId: string, keyPath: string): stri
       }
     );
 
+    console.log(`🔐 Token JWT gerado com sucesso (${token.length} caracteres)`);
     return token;
   } catch (error) {
-    throw new Error(`Erro ao gerar token APNs: ${error}`);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    throw new Error(`Erro ao gerar token APNs: ${errorMessage}`);
   }
 }
 
@@ -86,52 +94,90 @@ export async function sendPushNotification(
   console.log(`🔑 Key ID: ${keyId}, Team ID: ${teamId}`);
   console.log(`📦 Bundle ID: ${bundleId}`);
   console.log(`🔗 URL: ${apnsUrl.substring(0, 50)}...`);
+  console.log(`📝 Payload:`, JSON.stringify(payload, null, 2));
 
   try {
-    const response = await axios.post<APNsResponse>(
-      apnsUrl,
-      payload,
-      {
+    // Usar https nativo do Node.js ao invés de axios para evitar problemas com follow-redirects
+    const https = await import('https');
+    const response = await new Promise<{ statusCode: number; data: any; headers: any }>((resolve, reject) => {
+      const url = new URL(apnsUrl);
+      const postData = JSON.stringify(payload);
+
+      const options = {
+        hostname: url.hostname,
+        port: 443,
+        path: url.pathname,
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'apns-topic': bundleId,
           'apns-priority': '10',
           'apns-push-type': 'alert',
           'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
         },
         timeout: 10000,
-        validateStatus: (status) => status < 500, // Aceitar status < 500 para ver a resposta de erro do APNs
-      }
-    );
+      };
 
-    if (response.status >= 200 && response.status < 300) {
-      console.log(`✅ Push enviado com sucesso. APNs-ID: ${response.data['apns-id']}`);
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => {
+          let parsedData: any = {};
+          try {
+            parsedData = data ? JSON.parse(data) : {};
+          } catch {
+            parsedData = { raw: data };
+          }
+          resolve({
+            statusCode: res.statusCode || 0,
+            data: parsedData,
+            headers: res.headers,
+          });
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(error);
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Timeout na requisição'));
+      });
+
+      req.write(postData);
+      req.end();
+    });
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      console.log(`✅ Push enviado com sucesso. Status: ${response.statusCode}`);
+      if (response.headers['apns-id']) {
+        console.log(`   APNs-ID: ${response.headers['apns-id']}`);
+      }
     } else {
       // APNs retornou erro
       const apnsError = response.data as APNsResponse;
-      throw new Error(`APNs retornou erro ${response.status}: ${apnsError?.reason || 'Erro desconhecido'}`);
+      const errorMessage = apnsError?.reason || `HTTP ${response.statusCode}`;
+      console.error(`❌ APNs retornou erro ${response.statusCode}: ${errorMessage}`);
+      throw new Error(`APNs retornou erro ${response.statusCode}: ${errorMessage}`);
     }
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      // Log detalhado do erro
-      console.error('❌ Erro detalhado do axios:');
-      console.error('   Code:', error.code);
-      console.error('   Message:', error.message);
-      console.error('   Response status:', error.response?.status);
-      console.error('   Response data:', error.response?.data);
-      
-      if (error.response?.data) {
-        const apnsError = error.response.data as APNsResponse;
-        throw new Error(`Erro ao enviar push: ${apnsError?.reason || error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('❌ Erro ao enviar push:', errorMessage);
+    
+    if (error instanceof Error) {
+      // Verificar tipos específicos de erro
+      if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ETIMEDOUT')) {
+        throw new Error(`Erro de conexão: ${errorMessage}`);
       }
-      
-      // Se não há response, pode ser erro de conexão
-      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-        throw new Error(`Erro de conexão: ${error.message}`);
+      if (errorMessage.includes('certificate') || errorMessage.includes('SSL')) {
+        throw new Error(`Erro de certificado SSL: ${errorMessage}`);
       }
-      
-      throw new Error(`Erro ao enviar push: ${error.message}`);
     }
+    
     throw error;
   }
 }
