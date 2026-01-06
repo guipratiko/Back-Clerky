@@ -27,7 +27,7 @@ Thumbs.db
 *.swo
 
 # Google Play Service Account (credenciais sensíveis)
-*-*.json
-google-play-service-account*.json
-clerky-*.json
+# *-*.json
+# google-play-service-account*.json
+# clerky-*.json
 
