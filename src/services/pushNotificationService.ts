@@ -221,3 +221,97 @@ export async function sendPromotionalNotification(
   await sendPushToUser(userId, payload);
 }
 
+/**
+ * Enviar notificação promocional para todos os dispositivos iOS ativos
+ */
+export async function sendPromotionalNotificationToAll(
+  title: string,
+  body: string,
+  data?: Record<string, any>,
+  filters?: {
+    platform?: 'ios' | 'android';
+    isPremium?: boolean;
+  }
+): Promise<{
+  totalDevices: number;
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+}> {
+  const User = (await import('../models/User')).default;
+
+  // Buscar todos os dispositivos ativos
+  const query: any = { isActive: true };
+  
+  if (filters?.platform) {
+    query.platform = filters.platform;
+  } else {
+    // Por padrão, enviar apenas para iOS
+    query.platform = 'ios';
+  }
+
+  const devices = await DeviceToken.find(query);
+
+  // Se houver filtro de premium, buscar usuários e filtrar
+  let filteredDevices = devices;
+  if (filters?.isPremium !== undefined) {
+    const userIds = [...new Set(devices.map((d: any) => d.userId.toString()))];
+    const users = await User.find({ _id: { $in: userIds } }).select('_id isPremium');
+    const userMap = new Map(users.map((u: any) => [u._id.toString(), u.isPremium]));
+    
+    filteredDevices = devices.filter((device: any) => {
+      const isPremium = userMap.get(device.userId.toString());
+      return isPremium === filters.isPremium;
+    });
+  }
+
+  const payload: APNsPayload = {
+    aps: {
+      alert: {
+        title,
+        body,
+      },
+      sound: 'default',
+      badge: 1,
+    },
+    type: 'promotional',
+    ...data,
+  };
+
+  let successCount = 0;
+  let failedCount = 0;
+  const errors: string[] = [];
+
+  console.log(`📤 Enviando notificação promocional para ${filteredDevices.length} dispositivo(s)...`);
+
+  for (const device of filteredDevices) {
+    try {
+      await sendPushNotification(
+        device.deviceToken,
+        payload,
+        device.isProduction ?? true
+      );
+      successCount++;
+    } catch (error) {
+      failedCount++;
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      errors.push(`Device ${device.deviceToken.substring(0, 20)}...: ${errorMessage}`);
+
+      // Se o token for inválido, marcar como inativo
+      if (errorMessage.includes('BadDeviceToken') || errorMessage.includes('Unregistered')) {
+        device.isActive = false;
+        await device.save();
+      }
+    }
+  }
+
+  console.log(`✅ Notificação promocional enviada: ${successCount} sucesso, ${failedCount} falhas`);
+
+  return {
+    totalDevices: filteredDevices.length,
+    successCount,
+    failedCount,
+    errors: errors.slice(0, 10), // Limitar a 10 erros para não sobrecarregar a resposta
+  };
+}
+

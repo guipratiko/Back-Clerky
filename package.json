@@ -16,6 +16,7 @@
     "drop-all": "ts-node-dev --transpile-only src/scripts/dropAllTables.ts",
     "reset-db": "ts-node-dev --transpile-only src/scripts/resetDatabase.ts",
     "delete-users": "ts-node-dev --transpile-only src/scripts/deleteAllUsers.ts",
+    "test-promo": "ts-node-dev --transpile-only src/scripts/testPromotionalNotification.ts",
     "kill": "bash scripts/kill-server.sh"
   },
   "keywords": [

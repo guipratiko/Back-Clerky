@@ -10,6 +10,7 @@ import groupRoutes from './group.routes';
 import dashboardRoutes from './dashboard.routes';
 import premiumWebhookRoutes from './premiumWebhook.routes';
 import subscriptionRoutes from './subscription.routes';
+import adminRoutes from './admin.routes';
 import { dispatchProxy } from '../middleware/dispatchProxy';
 import { protect, requirePremium } from '../middleware/auth';
 
@@ -29,6 +30,7 @@ router.use('/ai-agent', aiAgentRoutes);
 router.use('/groups', groupRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/subscriptions', subscriptionRoutes);
+router.use('/admin', adminRoutes);
 
 export default router;
 
