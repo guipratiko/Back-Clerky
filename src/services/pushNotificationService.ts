@@ -97,54 +97,77 @@ export async function sendPushNotification(
   console.log(`📝 Payload:`, JSON.stringify(payload, null, 2));
 
   try {
-    // Usar https nativo do Node.js ao invés de axios para evitar problemas com follow-redirects
-    const https = await import('https');
+    // APNs requer HTTP/2, não HTTP/1.1
+    const http2 = await import('http2');
     const response = await new Promise<{ statusCode: number; data: any; headers: any }>((resolve, reject) => {
       const url = new URL(apnsUrl);
       const postData = JSON.stringify(payload);
 
-      const options = {
-        hostname: url.hostname,
-        port: 443,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'apns-topic': bundleId,
-          'apns-priority': '10',
-          'apns-push-type': 'alert',
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postData),
-        },
-        timeout: 10000,
-      };
-
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          let parsedData: any = {};
-          try {
-            parsedData = data ? JSON.parse(data) : {};
-          } catch {
-            parsedData = { raw: data };
-          }
-          resolve({
-            statusCode: res.statusCode || 0,
-            data: parsedData,
-            headers: res.headers,
-          });
-        });
+      const client = http2.connect(`https://${url.hostname}`, {
+        rejectUnauthorized: true,
       });
 
-      req.on('error', (error) => {
+      client.on('error', (error) => {
+        console.error('❌ Erro na conexão HTTP/2:', error);
+        client.close();
         reject(error);
       });
 
-      req.on('timeout', () => {
-        req.destroy();
+      const req = client.request({
+        ':method': 'POST',
+        ':path': url.pathname,
+        'Authorization': `Bearer ${authToken}`,
+        'apns-topic': bundleId,
+        'apns-priority': '10',
+        'apns-push-type': 'alert',
+        'Content-Type': 'application/json',
+        'Content-Length': String(Buffer.byteLength(postData)),
+      });
+
+      let data = '';
+      let responseHeaders: any = {};
+      let statusCode = 0;
+      
+      req.on('response', (headers) => {
+        responseHeaders = headers;
+        const status = headers[':status'];
+        statusCode = typeof status === 'string' ? parseInt(status, 10) : (status || 0);
+        console.log(`📡 Status da resposta: ${statusCode}`);
+        console.log(`📋 Headers da resposta:`, headers);
+      });
+
+      req.on('data', (chunk) => {
+        data += chunk.toString();
+      });
+
+      req.on('end', () => {
+        console.log(`📦 Dados recebidos (${data.length} bytes):`, data.substring(0, 200));
+        
+        let parsedData: any = {};
+        try {
+          parsedData = data ? JSON.parse(data) : {};
+        } catch {
+          parsedData = { raw: data };
+        }
+        
+        resolve({
+          statusCode,
+          data: parsedData,
+          headers: responseHeaders,
+        });
+        
+        client.close();
+      });
+
+      req.on('error', (error) => {
+        console.error('❌ Erro na requisição HTTP/2:', error);
+        client.close();
+        reject(error);
+      });
+
+      req.setTimeout(10000, () => {
+        req.close();
+        client.close();
         reject(new Error('Timeout na requisição'));
       });
 
