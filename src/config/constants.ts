@@ -103,9 +103,12 @@ export const EMAIL_CONFIG = {
 // Apple Configuration (APNs e In-App Purchase)
 export const APPLE_CONFIG = {
   KEY_ID: process.env.APPLE_KEY_ID || '64A38GH33A',
+  // IMPORTANTE: Team ID deve ser um código alfanumérico de 10 caracteres (ex: ABC123DEF4)
+  // NÃO deve ser um UUID. Encontre o Team ID correto em: https://developer.apple.com/account
   TEAM_ID: process.env.APPLE_TEAM_ID || '3729ecba-5285-4d4b-8811-d0f4d844035b',
   KEY_PATH: process.env.APPLE_KEY_PATH || './src/SubscriptionKey_64A38GH33A.p8',
-  BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'com.br.clerky.clerky',
+  // Bundle ID deve corresponder ao Bundle Identifier do app no Xcode
+  BUNDLE_ID: process.env.APPLE_BUNDLE_ID || 'com.guip.dev.Clerky',
   SHARED_SECRET: process.env.APPLE_SHARED_SECRET || '', // Opcional para validação de receipts
 };
 
