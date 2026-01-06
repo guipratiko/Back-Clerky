@@ -221,3 +221,63 @@ export async function sendPromotionalNotification(
   await sendPushToUser(userId, payload);
 }
 
+/**
+ * Enviar push para todos os dispositivos iOS ativos
+ * @param payload - Payload da notificação APNs
+ * @returns Estatísticas do envio (sucessos, falhas, total)
+ */
+export async function sendPushToAllIOSUsers(
+  payload: APNsPayload
+): Promise<{ success: number; failed: number; total: number; errors: string[] }> {
+  // Buscar todos os dispositivos iOS ativos
+  const devices = await DeviceToken.find({ 
+    platform: 'ios',
+    isActive: true 
+  });
+
+  let successCount = 0;
+  const errors: string[] = [];
+  const total = devices.length;
+
+  console.log(`📱 Enviando push para ${total} dispositivos iOS...`);
+
+  // Enviar para cada dispositivo
+  for (const device of devices) {
+    try {
+      await sendPushNotification(
+        device.deviceToken, 
+        payload, 
+        device.isProduction ?? true
+      );
+      successCount++;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      errors.push(`Device ${device.deviceToken.substring(0, 20)}...: ${errorMessage}`);
+
+      // Se o token for inválido, marcar como inativo
+      if (errorMessage.includes('BadDeviceToken') || errorMessage.includes('Unregistered')) {
+        device.isActive = false;
+        await device.save();
+        console.log(`⚠️ Token inválido desativado: ${device.deviceToken.substring(0, 20)}...`);
+      }
+    }
+  }
+
+  const failed = total - successCount;
+
+  console.log(`✅ Push enviado: ${successCount} sucessos, ${failed} falhas de ${total} total`);
+
+  if (errors.length > 0 && errors.length <= 10) {
+    console.warn(`⚠️ Erros encontrados:`, errors);
+  } else if (errors.length > 10) {
+    console.warn(`⚠️ ${errors.length} erros encontrados (mostrando primeiros 10):`, errors.slice(0, 10));
+  }
+
+  return {
+    success: successCount,
+    failed,
+    total,
+    errors,
+  };
+}
+

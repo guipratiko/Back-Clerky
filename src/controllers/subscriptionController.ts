@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import {
   createValidationError,
@@ -10,6 +10,7 @@ import {
   validateGoogleSubscription,
   getActiveSubscription,
 } from '../services/subscriptionService';
+import { sendPushToAllIOSUsers } from '../services/pushNotificationService';
 import DeviceToken from '../models/DeviceToken';
 import User from '../models/User';
 import Subscription from '../models/Subscription';
@@ -356,6 +357,53 @@ export const removeDeviceToken = async (
     });
   } catch (error: unknown) {
     return next(handleControllerError(error, 'Erro ao remover device token'));
+  }
+};
+
+/**
+ * Enviar push para todos os usuários iOS (teste)
+ * POST /api/subscriptions/push/broadcast (com autenticação)
+ * POST /api/subscriptions/push/broadcast-test (sem autenticação, apenas dev)
+ */
+export const broadcastPushToAllIOS = async (
+  req: AuthRequest | Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { title, body, sound, badge, data } = req.body;
+
+    if (!title || !body) {
+      return next(createValidationError('title e body são obrigatórios'));
+    }
+
+    const payload = {
+      aps: {
+        alert: {
+          title,
+          body,
+        },
+        sound: sound || 'default',
+        badge: badge !== undefined ? badge : 1,
+      },
+      type: 'broadcast',
+      ...data,
+    };
+
+    const result = await sendPushToAllIOSUsers(payload);
+
+    res.status(200).json({
+      status: 'success',
+      message: `Notificação enviada para ${result.success} dispositivos`,
+      result: {
+        success: result.success,
+        failed: result.failed,
+        total: result.total,
+        errors: result.errors.slice(0, 10), // Limitar a 10 erros na resposta
+      },
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao enviar push broadcast'));
   }
 };
 
