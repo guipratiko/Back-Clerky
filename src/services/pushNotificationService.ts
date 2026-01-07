@@ -237,16 +237,25 @@ function initializeFirebase(): void {
       // Normalizar a chave privada - garantir que tenha quebras de linha corretas
       let privateKey = FIREBASE_CONFIG.PRIVATE_KEY || '';
       
-      console.log('🔍 Chave privada recebida (primeiros 50 chars):', privateKey.substring(0, 50));
-      console.log('🔍 Chave privada tem \\n literal?', privateKey.includes('\\n'));
-      console.log('🔍 Chave privada tem quebra de linha real?', privateKey.includes('\n'));
+      console.log('🔍 Chave privada recebida (comprimento):', privateKey.length);
+      console.log('🔍 Primeiros 80 chars:', privateKey.substring(0, 80));
+      
+      // Remover espaços extras no início e fim
+      privateKey = privateKey.trim();
+      
+      // Remover aspas se existirem
+      privateKey = privateKey.replace(/^["']|["']$/g, '');
       
       // Substituir diferentes formatos de quebras de linha
-      // 1. \n literal (string)
+      // 1. \n literal (string escapada)
       privateKey = privateKey.replace(/\\n/g, '\n');
-      // 2. \\n (duplo escape)
+      // 2. \\n (duplo escape - ocorre quando já foi substituído)
       privateKey = privateKey.replace(/\\\\n/g, '\n');
-      // 3. Quebras de linha já existentes (manter)
+      // 3. \\r\\n (Windows)
+      privateKey = privateKey.replace(/\\r\\n/g, '\n');
+      
+      // Garantir que não tenha espaços extras
+      privateKey = privateKey.trim();
       
       // Verificar se a chave está corretamente formatada
       const hasBegin = privateKey.includes('-----BEGIN PRIVATE KEY-----');
@@ -262,7 +271,15 @@ function initializeFirebase(): void {
         return;
       }
       
-      console.log('✅ Chave privada formatada corretamente');
+      // Verificar se a chave tem o tamanho mínimo esperado (deve ter pelo menos 1000 caracteres)
+      if (privateKey.length < 1000) {
+        console.error('❌ Chave privada parece estar incompleta (muito curta)');
+        console.error('   Comprimento:', privateKey.length, '(esperado: ~1600+ caracteres)');
+        console.error('   Verifique se a chave completa foi configurada no .env');
+        return;
+      }
+      
+      console.log('✅ Chave privada formatada corretamente (comprimento:', privateKey.length, 'chars)');
       
       const serviceAccount = {
         type: 'service_account',
