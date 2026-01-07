@@ -2,8 +2,9 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
+import * as admin from 'firebase-admin';
 import DeviceToken from '../models/DeviceToken';
-import { APPLE_CONFIG } from '../config/constants';
+import { APPLE_CONFIG, FIREBASE_CONFIG } from '../config/constants';
 
 interface APNsPayload {
   aps: {
@@ -215,27 +216,171 @@ export async function sendPushNotification(
 }
 
 /**
+ * Inicializar Firebase Admin SDK (chamado uma vez no início)
+ */
+let firebaseInitialized = false;
+
+function initializeFirebase(): void {
+  if (firebaseInitialized) {
+    return;
+  }
+
+  try {
+    const serviceAccountPath = path.isAbsolute(FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH)
+      ? FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH
+      : path.join(__dirname, '../../', FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH);
+
+    if (!fs.existsSync(serviceAccountPath)) {
+      console.warn(`⚠️ Arquivo Firebase Service Account não encontrado: ${serviceAccountPath}`);
+      console.warn('   As notificações Android não funcionarão sem este arquivo.');
+      return;
+    }
+
+    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+    });
+
+    firebaseInitialized = true;
+    console.log('✅ Firebase Admin SDK inicializado com sucesso');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar Firebase Admin SDK:', error);
+  }
+}
+
+/**
+ * Enviar notificação via FCM (Android)
+ */
+export async function sendFCMNotification(
+  deviceToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> {
+  // Inicializar Firebase se ainda não foi inicializado
+  if (!firebaseInitialized) {
+    initializeFirebase();
+  }
+
+  if (!firebaseInitialized) {
+    throw new Error('Firebase Admin SDK não foi inicializado. Verifique o arquivo de credenciais.');
+  }
+
+  try {
+    // Construir payload de dados (sempre incluir, mesmo se vazio)
+    const messageData: Record<string, string> = {
+      type: 'promotional',
+      ...(data
+        ? Object.entries(data).reduce((acc, [key, value]) => {
+            acc[key] = String(value);
+            return acc;
+          }, {} as Record<string, string>)
+        : {}),
+    };
+
+    const message: admin.messaging.Message = {
+      token: deviceToken,
+      notification: {
+        title,
+        body,
+      },
+      data: messageData,
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+          channelId: 'clerky_notifications',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK', // Manter compatibilidade
+        },
+        ttl: 3600000, // 1 hora
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
+    };
+
+    console.log(`📤 Enviando FCM para token: ${deviceToken.substring(0, 20)}...`);
+    console.log(`   Título: ${title}`);
+    console.log(`   Corpo: ${body}`);
+    
+    const response = await admin.messaging().send(message);
+    console.log(`✅ Notificação FCM enviada com sucesso. Message ID: ${response}`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error(`❌ Erro ao enviar notificação FCM: ${errorMessage}`);
+
+    // Tratar erros específicos do FCM
+    // Verificar se o erro tem a propriedade 'code' (característica dos erros do Firebase Admin SDK)
+    if (error && typeof error === 'object' && 'code' in error) {
+      const errorCode = (error as any).code;
+      if (errorCode === 'messaging/invalid-registration-token' || 
+          errorCode === 'messaging/registration-token-not-registered') {
+        throw new Error(`Token FCM inválido: ${errorMessage}`);
+      }
+    }
+
+    throw error;
+  }
+}
+
+/**
  * Enviar push para todos os dispositivos de um usuário
  */
 export async function sendPushToUser(
   userId: string,
-  payload: APNsPayload
+  payload: APNsPayload,
+  platform?: 'ios' | 'android'
 ): Promise<number> {
-  const devices = await DeviceToken.find({ userId: userId as any, isActive: true });
+  const query: any = { userId: userId as any, isActive: true };
+  if (platform) {
+    query.platform = platform;
+  }
+  
+  const devices = await DeviceToken.find(query);
 
   let successCount = 0;
   const errors: string[] = [];
 
   for (const device of devices) {
     try {
-      await sendPushNotification(device.deviceToken, payload, device.isProduction ?? true);
+      if (device.platform === 'android') {
+        // Enviar via FCM para Android
+        const title = payload.aps?.alert?.title || payload.aps?.alert?.body || 'Clerky';
+        const body = payload.aps?.alert?.body || '';
+        // Criar payload customizado sem aps
+        const customData: Record<string, any> = {};
+        Object.keys(payload).forEach(key => {
+          if (key !== 'aps') {
+            customData[key] = payload[key];
+          }
+        });
+
+        await sendFCMNotification(device.deviceToken, title, body, customData);
+      } else {
+        // Enviar via APNs para iOS
+        await sendPushNotification(device.deviceToken, payload, device.isProduction ?? true);
+      }
       successCount++;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      errors.push(`Device ${device.deviceToken}: ${errorMessage}`);
+      errors.push(`Device ${device.deviceToken.substring(0, 20)}...: ${errorMessage}`);
 
       // Se o token for inválido, marcar como inativo
-      if (errorMessage.includes('BadDeviceToken') || errorMessage.includes('Unregistered')) {
+      if (
+        errorMessage.includes('BadDeviceToken') || 
+        errorMessage.includes('Unregistered') ||
+        errorMessage.includes('invalid-registration-token') ||
+        errorMessage.includes('registration-token-not-registered')
+      ) {
         device.isActive = false;
         await device.save();
       }
@@ -356,10 +501,8 @@ export async function sendPromotionalNotificationToAll(
   
   if (filters?.platform) {
     query.platform = filters.platform;
-  } else {
-    // Por padrão, enviar apenas para iOS
-    query.platform = 'ios';
   }
+  // Se não especificar plataforma, enviar para todas (iOS e Android)
 
   const devices = await DeviceToken.find(query);
 
@@ -406,11 +549,22 @@ export async function sendPromotionalNotificationToAll(
 
   for (const device of filteredDevices) {
     try {
-      await sendPushNotification(
-        device.deviceToken,
-        payload,
-        device.isProduction ?? true
-      );
+      if (device.platform === 'android') {
+        // Enviar via FCM para Android
+        await sendFCMNotification(
+          device.deviceToken,
+          title,
+          body,
+          { type: 'promotional', ...data }
+        );
+      } else {
+        // Enviar via APNs para iOS
+        await sendPushNotification(
+          device.deviceToken,
+          payload,
+          device.isProduction ?? true
+        );
+      }
       successCount++;
     } catch (error) {
       failedCount++;
@@ -418,7 +572,12 @@ export async function sendPromotionalNotificationToAll(
       errors.push(`Device ${device.deviceToken.substring(0, 20)}...: ${errorMessage}`);
 
       // Se o token for inválido, marcar como inativo
-      if (errorMessage.includes('BadDeviceToken') || errorMessage.includes('Unregistered')) {
+      if (
+        errorMessage.includes('BadDeviceToken') || 
+        errorMessage.includes('Unregistered') ||
+        errorMessage.includes('invalid-registration-token') ||
+        errorMessage.includes('registration-token-not-registered')
+      ) {
         device.isActive = false;
         await device.save();
       }

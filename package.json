@@ -19,6 +19,7 @@
     "test-promo": "ts-node-dev --transpile-only src/scripts/testPromotionalNotification.ts",
     "test-promo-user": "ts-node-dev --transpile-only src/scripts/testPromoToUser.ts",
     "send-promo-api": "ts-node-dev --transpile-only src/scripts/sendPromoViaAPI.ts",
+    "send-promo-android": "ts-node-dev --transpile-only src/scripts/sendPromoAndroid.ts",
     "check-devices": "ts-node-dev --transpile-only src/scripts/checkDeviceTokens.ts",
     "kill": "bash scripts/kill-server.sh"
   },
@@ -56,7 +57,8 @@
     "pg": "^8.11.3",
     "socket.io": "^4.8.1",
     "typescript": "^5.3.3",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "firebase-admin": "^13.0.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

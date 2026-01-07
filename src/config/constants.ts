@@ -112,3 +112,14 @@ export const APPLE_CONFIG = {
   SHARED_SECRET: process.env.APPLE_SHARED_SECRET || '', // Opcional para validação de receipts
 };
 
+// Firebase Configuration (FCM para Android)
+export const FIREBASE_CONFIG = {
+  // Caminho para o arquivo JSON da Service Account do Firebase
+  // Pode ser caminho absoluto ou relativo à raiz do projeto
+  SERVICE_ACCOUNT_PATH: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './clerky-7bdad-firebase-adminsdk-fbsvc-5c940f24b9.json',
+  // OU pode usar as credenciais diretamente via variáveis de ambiente (não recomendado)
+  // PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+  // PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+  // CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+};
+

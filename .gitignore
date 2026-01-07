@@ -31,3 +31,9 @@ Thumbs.db
 # google-play-service-account*.json
 # clerky-*.json
 
+# Firebase Service Account
+firebase-service-account.json
+*firebase-service-account*.json
+*firebase-adminsdk*.json
+clerky-*-firebase-adminsdk*.json
+
