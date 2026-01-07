@@ -237,17 +237,32 @@ function initializeFirebase(): void {
       // Normalizar a chave privada - garantir que tenha quebras de linha corretas
       let privateKey = FIREBASE_CONFIG.PRIVATE_KEY || '';
       
-      // Sempre substituir \n literais por quebras de linha reais
-      // Isso funciona mesmo se já tiver quebras de linha reais
+      console.log('🔍 Chave privada recebida (primeiros 50 chars):', privateKey.substring(0, 50));
+      console.log('🔍 Chave privada tem \\n literal?', privateKey.includes('\\n'));
+      console.log('🔍 Chave privada tem quebra de linha real?', privateKey.includes('\n'));
+      
+      // Substituir diferentes formatos de quebras de linha
+      // 1. \n literal (string)
       privateKey = privateKey.replace(/\\n/g, '\n');
+      // 2. \\n (duplo escape)
+      privateKey = privateKey.replace(/\\\\n/g, '\n');
+      // 3. Quebras de linha já existentes (manter)
       
       // Verificar se a chave está corretamente formatada
-      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
-        console.error('❌ Chave privada inválida: não contém marcadores BEGIN/END PRIVATE KEY');
-        console.error('   Verifique se FIREBASE_PRIVATE_KEY está configurado corretamente no servidor');
-        console.error('   Primeiros 100 caracteres:', privateKey.substring(0, 100));
+      const hasBegin = privateKey.includes('-----BEGIN PRIVATE KEY-----');
+      const hasEnd = privateKey.includes('-----END PRIVATE KEY-----');
+      
+      if (!hasBegin || !hasEnd) {
+        console.error('❌ Chave privada inválida:');
+        console.error('   Tem BEGIN?', hasBegin);
+        console.error('   Tem END?', hasEnd);
+        console.error('   Comprimento total:', privateKey.length);
+        console.error('   Primeiros 150 caracteres:', privateKey.substring(0, 150));
+        console.error('   Últimos 50 caracteres:', privateKey.substring(Math.max(0, privateKey.length - 50)));
         return;
       }
+      
+      console.log('✅ Chave privada formatada corretamente');
       
       const serviceAccount = {
         type: 'service_account',
