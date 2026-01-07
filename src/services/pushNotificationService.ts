@@ -281,11 +281,43 @@ function initializeFirebase(): void {
       
       console.log('✅ Chave privada formatada corretamente (comprimento:', privateKey.length, 'chars)');
       
+      // Limpar a chave privada - remover caracteres problemáticos
+      // Remover barras invertidas literais no final das linhas (problema comum em .env)
+      privateKey = privateKey.replace(/\\\s*\n/g, '\n'); // Remove \ seguido de quebra de linha
+      privateKey = privateKey.replace(/\\$/gm, ''); // Remove \ no final de cada linha
+      
+      // Dividir em linhas e limpar cada uma
+      const lines = privateKey.split('\n');
+      const cleanedLines = lines
+        .map(line => line.trim()) // Remove espaços no início/fim
+        .filter(line => line.length > 0); // Remove linhas vazias
+      
+      // Reconstruir a chave com quebras de linha corretas
+      let cleanedPrivateKey = cleanedLines.join('\n');
+      
+      // Garantir que tenha as linhas BEGIN e END corretas (sem espaços extras)
+      if (!cleanedPrivateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+        cleanedPrivateKey = '-----BEGIN PRIVATE KEY-----\n' + cleanedPrivateKey;
+      }
+      if (!cleanedPrivateKey.includes('-----END PRIVATE KEY-----')) {
+        cleanedPrivateKey = cleanedPrivateKey + '\n-----END PRIVATE KEY-----';
+      }
+      
+      // Remover espaços extras ao redor de BEGIN e END
+      cleanedPrivateKey = cleanedPrivateKey.replace(/\s*-----BEGIN PRIVATE KEY-----\s*/g, '-----BEGIN PRIVATE KEY-----\n');
+      cleanedPrivateKey = cleanedPrivateKey.replace(/\s*-----END PRIVATE KEY-----\s*/g, '\n-----END PRIVATE KEY-----');
+      
+      // Garantir que não tenha linhas vazias extras
+      cleanedPrivateKey = cleanedPrivateKey.replace(/\n{3,}/g, '\n\n');
+      
+      console.log('🔍 Chave privada limpa (primeiros 100 chars):', cleanedPrivateKey.substring(0, 100).replace(/\n/g, '\\n'));
+      console.log('🔍 Chave privada limpa (últimos 50 chars):', cleanedPrivateKey.substring(Math.max(0, cleanedPrivateKey.length - 50)).replace(/\n/g, '\\n'));
+      
       const serviceAccount = {
         type: 'service_account',
         project_id: FIREBASE_CONFIG.PROJECT_ID,
         private_key_id: FIREBASE_CONFIG.PRIVATE_KEY_ID,
-        private_key: privateKey,
+        private_key: cleanedPrivateKey,
         client_email: FIREBASE_CONFIG.CLIENT_EMAIL,
         client_id: FIREBASE_CONFIG.CLIENT_ID,
         auth_uri: FIREBASE_CONFIG.AUTH_URI,
