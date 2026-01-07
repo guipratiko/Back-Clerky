@@ -114,12 +114,19 @@ export const APPLE_CONFIG = {
 
 // Firebase Configuration (FCM para Android)
 export const FIREBASE_CONFIG = {
-  // Caminho para o arquivo JSON da Service Account do Firebase
+  // Opção 1: Caminho para o arquivo JSON da Service Account do Firebase (desenvolvimento)
   // Pode ser caminho absoluto ou relativo à raiz do projeto
   SERVICE_ACCOUNT_PATH: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || './clerky-7bdad-firebase-adminsdk-fbsvc-5c940f24b9.json',
-  // OU pode usar as credenciais diretamente via variáveis de ambiente (não recomendado)
-  // PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-  // PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
-  // CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+  
+  // Opção 2: Credenciais via variáveis de ambiente (produção - mais seguro)
+  // Use essas variáveis no servidor de produção em vez do arquivo JSON
+  PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+  PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Permitir quebras de linha
+  PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
+  CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+  CLIENT_ID: process.env.FIREBASE_CLIENT_ID,
+  AUTH_URI: process.env.FIREBASE_AUTH_URI || 'https://accounts.google.com/o/oauth2/auth',
+  TOKEN_URI: process.env.FIREBASE_TOKEN_URI || 'https://oauth2.googleapis.com/token',
+  CLIENT_X509_CERT_URL: process.env.FIREBASE_CLIENT_X509_CERT_URL,
 };
 

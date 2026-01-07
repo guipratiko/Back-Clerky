@@ -226,6 +226,38 @@ function initializeFirebase(): void {
   }
 
   try {
+    // Priorizar variáveis de ambiente (produção)
+    if (
+      FIREBASE_CONFIG.PROJECT_ID &&
+      FIREBASE_CONFIG.PRIVATE_KEY &&
+      FIREBASE_CONFIG.CLIENT_EMAIL
+    ) {
+      console.log('📋 Inicializando Firebase Admin SDK via variáveis de ambiente...');
+      
+      const serviceAccount = {
+        type: 'service_account',
+        project_id: FIREBASE_CONFIG.PROJECT_ID,
+        private_key_id: FIREBASE_CONFIG.PRIVATE_KEY_ID,
+        private_key: FIREBASE_CONFIG.PRIVATE_KEY,
+        client_email: FIREBASE_CONFIG.CLIENT_EMAIL,
+        client_id: FIREBASE_CONFIG.CLIENT_ID,
+        auth_uri: FIREBASE_CONFIG.AUTH_URI,
+        token_uri: FIREBASE_CONFIG.TOKEN_URI,
+        auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
+        client_x509_cert_url: FIREBASE_CONFIG.CLIENT_X509_CERT_URL,
+      };
+
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+      });
+
+      firebaseInitialized = true;
+      console.log('✅ Firebase Admin SDK inicializado com sucesso (via variáveis de ambiente)');
+      return;
+    }
+
+    // Fallback: tentar usar arquivo JSON (desenvolvimento)
+    console.log('📋 Tentando inicializar Firebase Admin SDK via arquivo JSON...');
     const serviceAccountPath = path.isAbsolute(FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH)
       ? FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH
       : path.join(__dirname, '../../', FIREBASE_CONFIG.SERVICE_ACCOUNT_PATH);
@@ -233,6 +265,7 @@ function initializeFirebase(): void {
     if (!fs.existsSync(serviceAccountPath)) {
       console.warn(`⚠️ Arquivo Firebase Service Account não encontrado: ${serviceAccountPath}`);
       console.warn('   As notificações Android não funcionarão sem este arquivo.');
+      console.warn('   Configure as variáveis de ambiente FIREBASE_* ou coloque o arquivo no caminho correto.');
       return;
     }
 
@@ -243,7 +276,7 @@ function initializeFirebase(): void {
     });
 
     firebaseInitialized = true;
-    console.log('✅ Firebase Admin SDK inicializado com sucesso');
+    console.log('✅ Firebase Admin SDK inicializado com sucesso (via arquivo JSON)');
   } catch (error) {
     console.error('❌ Erro ao inicializar Firebase Admin SDK:', error);
   }
