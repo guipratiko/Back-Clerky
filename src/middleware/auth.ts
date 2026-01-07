@@ -101,3 +101,42 @@ export const requirePremium = async (
   }
 };
 
+/**
+ * Middleware para verificar se o usuário é administrador
+ * Deve ser usado APÓS o middleware protect
+ */
+export const requireAdmin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      const error: AppError = new Error('Usuário não autenticado');
+      error.statusCode = 401;
+      error.status = 'unauthorized';
+      return next(error);
+    }
+
+    // Buscar usuário para verificar admin
+    const user = await User.findById(userId).select('admin');
+
+    if (!user) {
+      const error: AppError = new Error('Usuário não encontrado');
+      error.statusCode = 404;
+      error.status = 'not_found';
+      return next(error);
+    }
+
+    if (!user.admin) {
+      return next(createForbiddenError('Acesso negado. Esta funcionalidade é exclusiva para administradores.'));
+    }
+
+    next();
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao verificar permissões de administrador'));
+  }
+};
+

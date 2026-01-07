@@ -10,6 +10,7 @@ export interface IUser extends Document {
   phone?: string;
   timezone?: string; // Fuso horário do usuário (ex: 'America/Sao_Paulo', 'America/New_York')
   isPremium: boolean; // Plano premium
+  admin: boolean; // Administrador do sistema
   activationToken?: string; // Token para ativação de conta (pré-cadastro)
   activationTokenExpires?: Date; // Data de expiração do token de ativação
   resetPasswordToken?: string; // Token para recuperação de senha
@@ -69,6 +70,10 @@ const UserSchema: Schema = new Schema(
     isPremium: {
       type: Boolean,
       default: false, // Padrão: plano gratuito
+    },
+    admin: {
+      type: Boolean,
+      default: false, // Padrão: não é administrador
     },
     activationToken: {
       type: String,

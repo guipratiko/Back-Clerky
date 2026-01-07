@@ -99,19 +99,41 @@ curl -X POST http://localhost:4331/api/admin/send-promotion \
   }'
 ```
 
-## Script Automático
+## Scripts Automáticos
 
-Use o script `test-promo-prod.sh`:
+### Script Completo (Editável)
+
+Use o script `CURL_SEND_NOTIFICATION.sh` para enviar notificações facilmente:
 
 ```bash
 cd Backend
-API_URL=https://back.clerky.com.br EMAIL=guilherme.santos@me.com PASSWORD='Home1366!' ./test-promo-prod.sh
+# Edite o arquivo CURL_SEND_NOTIFICATION.sh com suas configurações
+./CURL_SEND_NOTIFICATION.sh
 ```
 
-Ou usando npm:
+### Script de Exemplo (Editável)
+
+Use o script `CURL_EXAMPLE_EDITABLE.sh`:
+
+```bash
+cd Backend
+# Edite o arquivo CURL_EXAMPLE_EDITABLE.sh com suas configurações
+./CURL_EXAMPLE_EDITABLE.sh
+```
+
+### Script via NPM
+
+Para Android:
 
 ```bash
 cd Backend
 API_URL=https://back.clerky.com.br EMAIL=guilherme.santos@me.com PASSWORD='Home1366!' npm run send-promo-android
+```
+
+Para todas as plataformas (iOS + Android):
+
+```bash
+cd Backend
+API_URL=https://back.clerky.com.br EMAIL=guilherme.santos@me.com PASSWORD='Home1366!' npm run send-promo-api
 ```
 

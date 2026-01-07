@@ -68,6 +68,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
         isPremium: user.isPremium || false,
+        admin: user.admin || false,
         cpf: user.cpf,
       },
     });
@@ -133,6 +134,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
         isPremium: user.isPremium || false,
+        admin: user.admin || false,
         cpf: user.cpf,
       },
     });
@@ -176,6 +178,7 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
         phone: user.phone,
         timezone: user.timezone || 'America/Sao_Paulo',
         isPremium: user.isPremium || false,
+        admin: user.admin || false,
         cpf: user.cpf,
       },
     });
