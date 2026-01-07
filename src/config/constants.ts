@@ -121,7 +121,9 @@ export const FIREBASE_CONFIG = {
   // Opção 2: Credenciais via variáveis de ambiente (produção - mais seguro)
   // Use essas variáveis no servidor de produção em vez do arquivo JSON
   PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-  PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'), // Permitir quebras de linha
+  // A chave privada será normalizada no pushNotificationService
+  // IMPORTANTE: No .env do servidor, use a chave completa com \n para quebras de linha
+  PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY, // Não fazer replace aqui, fazer no service
   PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
   CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
   CLIENT_ID: process.env.FIREBASE_CLIENT_ID,

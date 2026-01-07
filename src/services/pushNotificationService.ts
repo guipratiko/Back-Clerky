@@ -234,11 +234,26 @@ function initializeFirebase(): void {
     ) {
       console.log('📋 Inicializando Firebase Admin SDK via variáveis de ambiente...');
       
+      // Normalizar a chave privada - garantir que tenha quebras de linha corretas
+      let privateKey = FIREBASE_CONFIG.PRIVATE_KEY || '';
+      
+      // Sempre substituir \n literais por quebras de linha reais
+      // Isso funciona mesmo se já tiver quebras de linha reais
+      privateKey = privateKey.replace(/\\n/g, '\n');
+      
+      // Verificar se a chave está corretamente formatada
+      if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || !privateKey.includes('-----END PRIVATE KEY-----')) {
+        console.error('❌ Chave privada inválida: não contém marcadores BEGIN/END PRIVATE KEY');
+        console.error('   Verifique se FIREBASE_PRIVATE_KEY está configurado corretamente no servidor');
+        console.error('   Primeiros 100 caracteres:', privateKey.substring(0, 100));
+        return;
+      }
+      
       const serviceAccount = {
         type: 'service_account',
         project_id: FIREBASE_CONFIG.PROJECT_ID,
         private_key_id: FIREBASE_CONFIG.PRIVATE_KEY_ID,
-        private_key: FIREBASE_CONFIG.PRIVATE_KEY,
+        private_key: privateKey,
         client_email: FIREBASE_CONFIG.CLIENT_EMAIL,
         client_id: FIREBASE_CONFIG.CLIENT_ID,
         auth_uri: FIREBASE_CONFIG.AUTH_URI,
