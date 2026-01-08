@@ -6,12 +6,12 @@ import crmRoutes from './crm.routes';
 import workflowRoutes from './workflow.routes';
 import googleRoutes from './google.routes';
 import aiAgentRoutes from './aiAgent.routes';
-import groupRoutes from './group.routes';
 import dashboardRoutes from './dashboard.routes';
 import premiumWebhookRoutes from './premiumWebhook.routes';
 import subscriptionRoutes from './subscription.routes';
 import adminRoutes from './admin.routes';
 import { dispatchProxy } from '../middleware/dispatchProxy';
+import { groupProxy } from '../middleware/groupProxy';
 import { protect, requirePremium } from '../middleware/auth';
 
 const router = Router();
@@ -24,10 +24,11 @@ router.use('/instances', instanceRoutes);
 router.use('/crm', crmRoutes);
 // Proxy para microserviço de disparos - requer autenticação e plano premium
 router.use('/dispatches', protect, requirePremium, dispatchProxy);
+// Proxy para microserviço de grupos - requer autenticação e plano premium
+router.use('/groups', protect, requirePremium, groupProxy);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);
-router.use('/groups', groupRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/admin', adminRoutes);

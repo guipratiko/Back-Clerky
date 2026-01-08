@@ -135,6 +135,23 @@ export const initializeSocket = (httpServer: HttpServer): SocketServer => {
       }
     });
 
+    // Listener para eventos do microserviço de grupos
+    // O microserviço emite 'groups-updated' e o backend principal re-emite para o frontend
+    socket.on('groups-updated', (data: { userId: string; instanceId: string }) => {
+      if (!data.userId || !data.instanceId) {
+        return;
+      }
+
+      const userIdStr = data.userId.toString();
+      
+      // Re-emitir para o frontend na sala do usuário
+      if (io) {
+        io.to(userIdStr).emit('groups-updated', {
+          instanceId: data.instanceId,
+        });
+      }
+    });
+
     socket.on('disconnect', () => {
       // Cliente desconectado (log removido para reduzir verbosidade)
     });
@@ -148,20 +165,6 @@ export const getIO = (): SocketServer => {
     throw new Error('Socket.io não foi inicializado');
   }
   return io;
-};
-
-/**
- * Emitir evento de atualização de grupos para o usuário
- */
-export const emitGroupsUpdate = (userId: string, instanceId: string): void => {
-  if (!io) {
-    return;
-  }
-
-  const userIdStr = userId.toString();
-  io.to(userIdStr).emit('groups-updated', {
-    instanceId: instanceId,
-  });
 };
 
 // Função para verificar status de todas as instâncias de um usuário periodicamente
