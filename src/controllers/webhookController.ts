@@ -15,6 +15,8 @@ import {
   addMessageToBuffer,
   scheduleMessageProcessing,
 } from '../services/aiAgentProcessor';
+import { GroupMovementService } from '../services/groupMovementService';
+import { GroupAutoMessageService } from '../services/groupAutoMessageService';
 
 /**
  * Extrai e exibe informações relevantes do payload de forma limpa
@@ -126,126 +128,64 @@ export const receiveWebhook = async (
     // Normalizar tipo de evento (remover pontos, converter para maiúsculas)
     const normalizedEventType = eventType.toString().toUpperCase().replace(/\./g, '_');
 
-    // Log detalhado para debug
-    console.log(`🔍 [Webhook] EventType detectado: ${eventType}`);
-    console.log(`🔍 [Webhook] Normalized: ${normalizedEventType}`);
-    console.log(`🔍 [Webhook] eventData.event: ${eventData.event}`);
-    console.log(`🔍 [Webhook] eventData.type: ${eventData.type}`);
-    console.log(`🔍 [Webhook] eventData.action: ${eventData.action}`);
-    console.log(`🔍 [Webhook] eventData.data?.event: ${eventData.data?.event}`);
-    console.log(`🔍 [Webhook] eventData.data?.type: ${eventData.data?.type}`);
-    console.log(`🔍 [Webhook] eventData.data?.action: ${eventData.data?.action}`);
-    console.log(`🔍 [Webhook] eventData.participants:`, eventData.participants ? `Array(${eventData.participants.length})` : 'undefined');
-    console.log(`🔍 [Webhook] eventData.data?.participants:`, eventData.data?.participants ? `Array(${eventData.data.participants.length})` : 'undefined');
-    console.log(`🔍 [Webhook] eventData.id:`, eventData.id);
-    console.log(`🔍 [Webhook] eventData.data?.id:`, eventData.data?.id);
-    console.log(`🔍 [Webhook] Estrutura completa (primeiros 500 chars):`, JSON.stringify(eventData).substring(0, 500));
+    // Detectar tipo de evento também pelo conteúdo
+    // Verificar se há dados de mensagem (pode estar em data ou diretamente)
+    const hasMessages = eventData.messages || eventData.data?.messages || 
+                       (eventData.data && (Array.isArray(eventData.data) || eventData.data.remoteJid || eventData.data.conversation));
     
-    // Verificar se é evento de grupo (pode estar em diferentes campos)
-    // Na Evolution API, o evento group-participants.update pode ter estrutura:
-    // { event: 'group-participants.update', id: 'groupId', participants: [...], action: 'add'|'remove' }
-    const isGroupParticipantsEvent = 
-      normalizedEventType === 'GROUP_PARTICIPANTS_UPDATE' || 
-      normalizedEventType === 'GROUP.PARTICIPANTS.UPDATE' ||
-      (normalizedEventType.includes('GROUP') && normalizedEventType.includes('PARTICIPANTS')) ||
-      eventData.action === 'group-participants.update' ||
-      eventData.event === 'group-participants.update' ||
-      eventData.type === 'group-participants.update' ||
-      (eventData.data && (
-        eventData.data.action === 'group-participants.update' || 
-        eventData.data.event === 'group-participants.update' ||
-        eventData.data.type === 'group-participants.update'
-      )) ||
-      // Verificar também por estrutura de dados (participants, action: add/remove)
-      // O evento pode ter participants array e action (add/remove) mesmo que o event seja diferente
-      ((eventData.participants && Array.isArray(eventData.participants)) && 
-       (eventData.action === 'add' || eventData.action === 'remove')) ||
-      ((eventData.data?.participants && Array.isArray(eventData.data.participants)) && 
-       (eventData.data.action === 'add' || eventData.data.action === 'remove')) ||
-      // Verificar se tem id de grupo e participants (estrutura típica do evento)
-      (eventData.id && eventData.id.includes('@g.us') && 
-       (eventData.participants || eventData.data?.participants));
-
-    // Verificar primeiro eventos específicos que podem ter estrutura similar a outros eventos
-    // GROUP_PARTICIPANTS_UPDATE pode ter estrutura similar a mensagens, então verificar primeiro
-    // IMPORTANTE: Verificar ANTES de verificar mensagens, pois o evento pode ter estrutura similar
-    if (isGroupParticipantsEvent) {
-      console.log(`👥 [Webhook] ✅ Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
-      console.log(`👥 [Webhook] 📋 Estrutura completa do evento:`, JSON.stringify(eventData, null, 2));
+    if (hasMessages || normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
+      await handleMessagesUpsert(instance, eventData);
+    } else if (eventData.keys || eventData.data?.keys) {
+      await handleMessagesDelete(instance, eventData);
+    } else if (eventData.qrcode || eventData.data?.qrcode || eventData.base64) {
+      await handleQrcodeUpdated(instance, eventData);
+    } else if (eventData.state || eventData.connectionState || eventData.status || eventData.data?.state) {
+      await handleConnectionUpdate(instance, eventData);
+    } else if (eventData.groupJid || eventData.data?.groupJid || eventData.group || eventData.data?.group) {
       await handleGroupParticipantsUpdate(instance, eventData);
     } else {
-      // Detectar tipo de evento também pelo conteúdo
-      // Verificar se há dados de mensagem (pode estar em data ou diretamente)
-      // IMPORTANTE: Não confundir com eventos de grupo que podem ter campo 'data'
-      // Um evento de mensagem tem: messages array OU (remoteJid/conversation E não é evento de grupo)
-      const hasMessagesArray = 
-        (eventData.messages && Array.isArray(eventData.messages)) ||
-        (eventData.data?.messages && Array.isArray(eventData.data.messages));
-      
-      const hasMessageStructure = 
-        eventData.data && (
-          eventData.data.remoteJid || 
-          eventData.data.conversation ||
-          eventData.data.message ||
-          eventData.data.key
-        ) &&
-        // Garantir que NÃO é evento de grupo (não tem participants)
-        !eventData.data.participants &&
-        !eventData.participants;
-      
-      const hasMessages = hasMessagesArray || hasMessageStructure;
-      
-      if (hasMessages || (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT'))) {
-        console.log(`💬 [Webhook] Processando como MESSAGES_UPSERT`);
-        await handleMessagesUpsert(instance, eventData);
-      } else if (eventData.keys || eventData.data?.keys) {
-        await handleMessagesDelete(instance, eventData);
-      } else if (eventData.qrcode || eventData.data?.qrcode || eventData.base64) {
-        await handleQrcodeUpdated(instance, eventData);
-      } else if (eventData.state || eventData.connectionState || eventData.status || eventData.data?.state) {
-        await handleConnectionUpdate(instance, eventData);
-      } else {
-        // Tentar processar pelo tipo de evento normalizado
-        switch (normalizedEventType) {
-          case 'MESSAGES_UPSERT':
-          case 'MESSAGE_UPSERT':
+      // Tentar processar pelo tipo de evento normalizado
+      switch (normalizedEventType) {
+        case 'MESSAGES_UPSERT':
+        case 'MESSAGE_UPSERT':
+          await handleMessagesUpsert(instance, eventData);
+          break;
+
+        case 'MESSAGES_DELETE':
+        case 'MESSAGE_DELETE':
+        case 'MESSAGES.DELETE': // Formato com ponto
+          await handleMessagesDelete(instance, eventData);
+          break;
+
+        case 'QRCODE_UPDATED':
+        case 'QRCODE_UPDATE':
+        case 'QRCODE.UPDATED': // Formato com ponto
+          await handleQrcodeUpdated(instance, eventData);
+          break;
+
+        case 'CONNECTION_UPDATE':
+        case 'CONNECTION_UPDATED':
+        case 'CONNECTION.UPDATE': // Formato com ponto
+          await handleConnectionUpdate(instance, eventData);
+          break;
+
+        case 'GROUP_PARTICIPANTS_UPDATE':
+        case 'GROUP_PARTICIPANTS.UPDATE': // Formato com ponto
+          await handleGroupParticipantsUpdate(instance, eventData);
+          break;
+
+        default:
+          // Se o evento contém "messages" e "upsert", processar como mensagem
+          if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
             await handleMessagesUpsert(instance, eventData);
-            break;
-
-          case 'MESSAGES_DELETE':
-          case 'MESSAGE_DELETE':
-          case 'MESSAGES.DELETE': // Formato com ponto
+          } else if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('DELETE')) {
             await handleMessagesDelete(instance, eventData);
-            break;
-
-          case 'QRCODE_UPDATED':
-          case 'QRCODE_UPDATE':
-          case 'QRCODE.UPDATED': // Formato com ponto
-            await handleQrcodeUpdated(instance, eventData);
-            break;
-
-          case 'CONNECTION_UPDATE':
-          case 'CONNECTION_UPDATED':
-          case 'CONNECTION.UPDATE': // Formato com ponto
-            await handleConnectionUpdate(instance, eventData);
-            break;
-
-          case 'GROUP_PARTICIPANTS_UPDATE':
-          case 'GROUP.PARTICIPANTS.UPDATE': // Formato com ponto
+          } else if (normalizedEventType.includes('GROUP') && normalizedEventType.includes('PARTICIPANTS')) {
             await handleGroupParticipantsUpdate(instance, eventData);
-            break;
-
-          default:
-            // Se o evento contém "messages" e "upsert", processar como mensagem
-            if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
-              await handleMessagesUpsert(instance, eventData);
-            } else if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('DELETE')) {
-              await handleMessagesDelete(instance, eventData);
-            } else {
-              console.log(`ℹ️ Evento não processado: ${eventType} (normalizado: ${normalizedEventType})`);
-              console.log(`📋 Estrutura do evento:`, Object.keys(eventData));
-            }
-        }
+          } else {
+            console.log(`ℹ️ Evento não processado: ${eventType} (normalizado: ${normalizedEventType})`);
+            console.log(`📋 Estrutura do evento:`, Object.keys(eventData));
+          }
       }
     }
 
@@ -722,42 +662,6 @@ async function handleQrcodeUpdated(instance: any, eventData: any): Promise<void>
 }
 
 /**
- * Processa evento GROUP_PARTICIPANTS_UPDATE (movimentação de participantes)
- */
-async function handleGroupParticipantsUpdate(instance: any, eventData: any): Promise<void> {
-  console.log('👥 Atualização de participantes do grupo');
-  console.log(`📋 Dados do evento:`, JSON.stringify(eventData, null, 2));
-  
-  try {
-    // Encaminhar webhook para o microserviço Grupo-Clerky
-    const GROUP_SERVICE_URL = process.env.GROUP_SERVICE_URL || 'http://localhost:4334';
-    const webhookUrl = `${GROUP_SERVICE_URL}/api/webhook/group-participants/${instance.instanceName}`;
-    
-    console.log(`📤 Encaminhando webhook para: ${webhookUrl}`);
-    
-    await axios.post(webhookUrl, eventData, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000,
-    });
-    
-    console.log(`✅ Webhook de movimentação encaminhado para Grupo-Clerky`);
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error.message);
-      if (error.response) {
-        console.error(`   Status: ${error.response.status}`);
-        console.error(`   Data:`, error.response.data);
-      }
-    } else {
-      console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error);
-    }
-    // Não lançar erro para não interromper o fluxo principal
-  }
-}
-
-/**
  * Processa evento CONNECTION_UPDATE (atualização de conexão)
  */
 async function handleConnectionUpdate(instance: any, eventData: any): Promise<void> {
@@ -810,6 +714,144 @@ async function handleConnectionUpdate(instance: any, eventData: any): Promise<vo
         }
       }
     }
+  }
+}
+
+/**
+ * Processa evento GROUP_PARTICIPANTS_UPDATE (participantes adicionados/removidos/promovidos)
+ */
+async function handleGroupParticipantsUpdate(instance: any, eventData: any): Promise<void> {
+  console.log('👥 Atualização de participantes do grupo');
+  
+  if (!instance.userId) {
+    return;
+  }
+
+  const userId = instance.userId.toString();
+  const instanceId = instance._id.toString();
+
+  // Extrair dados do evento (pode estar em data ou diretamente)
+  const data = eventData.data || eventData;
+  
+  // Extrair informações do grupo
+  const groupJid = data.groupJid || data.group?.jid || data.groupJid || data.id || null;
+  const groupName = data.groupName || data.group?.subject || data.group?.name || null;
+  
+  // Extrair ação e participantes
+  const action = data.action || data.type || 'update'; // add, remove, promote, demote
+  const participants = data.participants || (data.participant ? [data.participant] : []);
+  const actionBy = data.actionBy || data.by || data.author || null;
+  const actionByJid = actionBy?.id || actionBy?.jid || actionBy || null;
+
+  if (!groupJid) {
+    console.warn('⚠️ GroupJid não encontrado no evento de participantes');
+    return;
+  }
+
+  console.log(`📋 Grupo: ${groupName || groupJid}`);
+  console.log(`🔧 Ação: ${action}`);
+  console.log(`👤 Participantes afetados: ${participants.length}`);
+
+  // Processar cada participante afetado
+  for (const participant of participants) {
+    try {
+      const participantJid = participant.id || participant.jid || participant || '';
+      const participantPhone = participantJid.replace(/@.*$/, '') || '';
+      const participantName = participant.name || participant.pushName || participant.notify || null;
+      const isAdmin = participant.isAdmin !== undefined ? participant.isAdmin : (action === 'promote');
+
+      // Determinar tipo de movimentação
+      let movementType: 'join' | 'leave' | 'promote' | 'demote' = 'join';
+      
+      if (action === 'add' || action === 'join') {
+        movementType = 'join';
+      } else if (action === 'remove' || action === 'leave') {
+        movementType = 'leave';
+      } else if (action === 'promote') {
+        movementType = 'promote';
+      } else if (action === 'demote') {
+        movementType = 'demote';
+      }
+
+      // Extrair informações de quem realizou a ação
+      let actionByPhone: string | null = null;
+      let actionByName: string | null = null;
+      
+      if (actionByJid) {
+        actionByPhone = actionByJid.replace(/@.*$/, '') || null;
+        if (actionBy && typeof actionBy === 'object') {
+          actionByName = actionBy.name || actionBy.pushName || actionBy.notify || null;
+        }
+      }
+
+      // Registrar movimentação no banco
+      await GroupMovementService.createMovement({
+        userId,
+        instanceId,
+        groupId: groupJid,
+        groupName,
+        participantId: participantJid,
+        participantPhone: participantPhone || null,
+        participantName,
+        movementType,
+        isAdmin,
+        actionBy: actionByJid || null,
+        actionByPhone,
+        actionByName,
+      });
+
+      console.log(`✅ Movimentação registrada: ${movementType} - ${participantName || participantPhone}`);
+
+      // Processar mensagem automática (apenas para join e leave)
+      if (movementType === 'join' || movementType === 'leave') {
+        try {
+          const messageType = movementType === 'join' ? 'welcome' : 'goodbye';
+          
+          // Buscar mensagem automática configurada
+          const autoMessage = await GroupAutoMessageService.getAutoMessageForGroup(
+            userId,
+            instanceId,
+            groupJid,
+            messageType
+          );
+
+          if (autoMessage && autoMessage.isActive) {
+            // Enviar mensagem automática individualmente para o contato
+            await GroupAutoMessageService.sendAutoMessage(
+              instance.instanceName,
+              autoMessage,
+              participantPhone,
+              participantName,
+              groupName
+            );
+          } else {
+            console.log(`ℹ️ Nenhuma mensagem automática ${messageType} configurada para este grupo`);
+          }
+        } catch (autoMessageError) {
+          console.error('❌ Erro ao processar mensagem automática:', autoMessageError);
+          // Não bloquear o processamento se a mensagem automática falhar
+        }
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('❌ Erro ao processar participante:', errorMessage);
+      // Continuar processando outros participantes
+    }
+  }
+
+  // Emitir evento via WebSocket para atualizar frontend
+  try {
+    const io = getIO();
+    io.to(userId).emit('group-participants-updated', {
+      instanceId,
+      groupId: groupJid,
+      groupName,
+      action,
+      participantsCount: participants.length,
+    });
+    console.log(`📤 Evento 'group-participants-updated' emitido para usuário ${userId}`);
+  } catch (error) {
+    console.error('Erro ao emitir evento de atualização de participantes:', error);
   }
 }
 

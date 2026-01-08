@@ -10,6 +10,7 @@ import dashboardRoutes from './dashboard.routes';
 import premiumWebhookRoutes from './premiumWebhook.routes';
 import subscriptionRoutes from './subscription.routes';
 import adminRoutes from './admin.routes';
+import groupMovementRoutes from './groupMovement.routes';
 import { dispatchProxy } from '../middleware/dispatchProxy';
 import { groupProxy } from '../middleware/groupProxy';
 import { protect, requirePremium } from '../middleware/auth';
@@ -24,10 +25,11 @@ router.use('/instances', instanceRoutes);
 router.use('/crm', crmRoutes);
 // Proxy para microserviço de disparos - requer autenticação e plano premium
 router.use('/dispatches', protect, requirePremium, dispatchProxy);
+// Rotas de movimentações de grupos e mensagens automáticas (devem vir antes do proxy)
+router.use('/groups', groupMovementRoutes);
 // Proxy para microserviço de grupos - requer autenticação e plano premium
+// Nota: As rotas acima já têm proteção, então o proxy só captura rotas não mapeadas
 router.use('/groups', protect, requirePremium, groupProxy);
-router.use('/movements', protect, requirePremium, groupProxy);
-router.use('/auto-messages', protect, requirePremium, groupProxy);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);
