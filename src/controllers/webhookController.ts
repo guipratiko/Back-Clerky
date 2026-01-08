@@ -135,6 +135,11 @@ export const receiveWebhook = async (
     console.log(`🔍 [Webhook] eventData.data?.event: ${eventData.data?.event}`);
     console.log(`🔍 [Webhook] eventData.data?.type: ${eventData.data?.type}`);
     console.log(`🔍 [Webhook] eventData.data?.action: ${eventData.data?.action}`);
+    console.log(`🔍 [Webhook] eventData.participants:`, eventData.participants ? `Array(${eventData.participants.length})` : 'undefined');
+    console.log(`🔍 [Webhook] eventData.data?.participants:`, eventData.data?.participants ? `Array(${eventData.data.participants.length})` : 'undefined');
+    console.log(`🔍 [Webhook] eventData.id:`, eventData.id);
+    console.log(`🔍 [Webhook] eventData.data?.id:`, eventData.data?.id);
+    console.log(`🔍 [Webhook] Estrutura completa (primeiros 500 chars):`, JSON.stringify(eventData).substring(0, 500));
     
     // Verificar se é evento de grupo (pode estar em diferentes campos)
     // Na Evolution API, o evento group-participants.update pode ter estrutura:
@@ -163,16 +168,35 @@ export const receiveWebhook = async (
 
     // Verificar primeiro eventos específicos que podem ter estrutura similar a outros eventos
     // GROUP_PARTICIPANTS_UPDATE pode ter estrutura similar a mensagens, então verificar primeiro
+    // IMPORTANTE: Verificar ANTES de verificar mensagens, pois o evento pode ter estrutura similar
     if (isGroupParticipantsEvent) {
-      console.log(`👥 [Webhook] Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
+      console.log(`👥 [Webhook] ✅ Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
+      console.log(`👥 [Webhook] 📋 Estrutura completa do evento:`, JSON.stringify(eventData, null, 2));
       await handleGroupParticipantsUpdate(instance, eventData);
     } else {
       // Detectar tipo de evento também pelo conteúdo
       // Verificar se há dados de mensagem (pode estar em data ou diretamente)
-      const hasMessages = eventData.messages || eventData.data?.messages || 
-                         (eventData.data && (Array.isArray(eventData.data) || eventData.data.remoteJid || eventData.data.conversation));
+      // IMPORTANTE: Não confundir com eventos de grupo que podem ter campo 'data'
+      // Um evento de mensagem tem: messages array OU (remoteJid/conversation E não é evento de grupo)
+      const hasMessagesArray = 
+        (eventData.messages && Array.isArray(eventData.messages)) ||
+        (eventData.data?.messages && Array.isArray(eventData.data.messages));
       
-      if (hasMessages || normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
+      const hasMessageStructure = 
+        eventData.data && (
+          eventData.data.remoteJid || 
+          eventData.data.conversation ||
+          eventData.data.message ||
+          eventData.data.key
+        ) &&
+        // Garantir que NÃO é evento de grupo (não tem participants)
+        !eventData.data.participants &&
+        !eventData.participants;
+      
+      const hasMessages = hasMessagesArray || hasMessageStructure;
+      
+      if (hasMessages || (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT'))) {
+        console.log(`💬 [Webhook] Processando como MESSAGES_UPSERT`);
         await handleMessagesUpsert(instance, eventData);
       } else if (eventData.keys || eventData.data?.keys) {
         await handleMessagesDelete(instance, eventData);
