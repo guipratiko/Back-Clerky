@@ -51,10 +51,19 @@ async function proxyRequest(
 ): Promise<void> {
   try {
     // Construir URL do microserviço
-    let path = req.path;
-    if (!path.startsWith('/groups')) {
+    // Usar originalUrl para pegar o path completo antes do Express remover o prefixo
+    let path = req.originalUrl.split('?')[0]; // Remove query params
+    
+    // Se o path começa com /api, remover o prefixo
+    if (path.startsWith('/api')) {
+      path = path.substring(4); // Remove '/api'
+    }
+    
+    // Se o path não começa com /groups, /movements ou /auto-messages, assumir que é /groups
+    if (!path.startsWith('/groups') && !path.startsWith('/movements') && !path.startsWith('/auto-messages')) {
       path = `/groups${path}`;
     }
+    
     const targetUrl = `${GROUP_SERVICE_URL}/api${path}`;
     
     // Preparar headers

@@ -26,6 +26,8 @@ router.use('/crm', crmRoutes);
 router.use('/dispatches', protect, requirePremium, dispatchProxy);
 // Proxy para microserviço de grupos - requer autenticação e plano premium
 router.use('/groups', protect, requirePremium, groupProxy);
+router.use('/movements', protect, requirePremium, groupProxy);
+router.use('/auto-messages', protect, requirePremium, groupProxy);
 router.use('/workflows', workflowRoutes);
 router.use('/google', googleRoutes);
 router.use('/ai-agent', aiAgentRoutes);

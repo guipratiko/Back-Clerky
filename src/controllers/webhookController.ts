@@ -165,6 +165,11 @@ export const receiveWebhook = async (
           await handleConnectionUpdate(instance, eventData);
           break;
 
+        case 'GROUP_PARTICIPANTS_UPDATE':
+        case 'GROUP.PARTICIPANTS.UPDATE': // Formato com ponto
+          await handleGroupParticipantsUpdate(instance, eventData);
+          break;
+
         default:
           // Se o evento contém "messages" e "upsert", processar como mensagem
           if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
@@ -647,6 +652,31 @@ async function handleQrcodeUpdated(instance: any, eventData: any): Promise<void>
         console.error('Erro ao emitir evento de QR code atualizado:', error);
       }
     }
+  }
+}
+
+/**
+ * Processa evento GROUP_PARTICIPANTS_UPDATE (movimentação de participantes)
+ */
+async function handleGroupParticipantsUpdate(instance: any, eventData: any): Promise<void> {
+  console.log('👥 Atualização de participantes do grupo');
+  
+  try {
+    // Encaminhar webhook para o microserviço Grupo-Clerky
+    const GROUP_SERVICE_URL = process.env.GROUP_SERVICE_URL || 'http://localhost:4334';
+    const webhookUrl = `${GROUP_SERVICE_URL}/api/webhook/group-participants/${instance.instanceName}`;
+    
+    await axios.post(webhookUrl, eventData, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    });
+    
+    console.log(`✅ Webhook de movimentação encaminhado para Grupo-Clerky`);
+  } catch (error) {
+    console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error);
+    // Não lançar erro para não interromper o fluxo principal
   }
 }
 
