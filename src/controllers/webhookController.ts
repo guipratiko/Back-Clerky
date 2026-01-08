@@ -151,46 +151,47 @@ export const receiveWebhook = async (
       } else if (eventData.state || eventData.connectionState || eventData.status || eventData.data?.state) {
         await handleConnectionUpdate(instance, eventData);
       } else {
-      // Tentar processar pelo tipo de evento normalizado
-      switch (normalizedEventType) {
-        case 'MESSAGES_UPSERT':
-        case 'MESSAGE_UPSERT':
-          await handleMessagesUpsert(instance, eventData);
-          break;
-
-        case 'MESSAGES_DELETE':
-        case 'MESSAGE_DELETE':
-        case 'MESSAGES.DELETE': // Formato com ponto
-          await handleMessagesDelete(instance, eventData);
-          break;
-
-        case 'QRCODE_UPDATED':
-        case 'QRCODE_UPDATE':
-        case 'QRCODE.UPDATED': // Formato com ponto
-          await handleQrcodeUpdated(instance, eventData);
-          break;
-
-        case 'CONNECTION_UPDATE':
-        case 'CONNECTION_UPDATED':
-        case 'CONNECTION.UPDATE': // Formato com ponto
-          await handleConnectionUpdate(instance, eventData);
-          break;
-
-        case 'GROUP_PARTICIPANTS_UPDATE':
-        case 'GROUP.PARTICIPANTS.UPDATE': // Formato com ponto
-          await handleGroupParticipantsUpdate(instance, eventData);
-          break;
-
-        default:
-          // Se o evento contém "messages" e "upsert", processar como mensagem
-          if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
+        // Tentar processar pelo tipo de evento normalizado
+        switch (normalizedEventType) {
+          case 'MESSAGES_UPSERT':
+          case 'MESSAGE_UPSERT':
             await handleMessagesUpsert(instance, eventData);
-          } else if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('DELETE')) {
+            break;
+
+          case 'MESSAGES_DELETE':
+          case 'MESSAGE_DELETE':
+          case 'MESSAGES.DELETE': // Formato com ponto
             await handleMessagesDelete(instance, eventData);
-          } else {
-            console.log(`ℹ️ Evento não processado: ${eventType} (normalizado: ${normalizedEventType})`);
-            console.log(`📋 Estrutura do evento:`, Object.keys(eventData));
-          }
+            break;
+
+          case 'QRCODE_UPDATED':
+          case 'QRCODE_UPDATE':
+          case 'QRCODE.UPDATED': // Formato com ponto
+            await handleQrcodeUpdated(instance, eventData);
+            break;
+
+          case 'CONNECTION_UPDATE':
+          case 'CONNECTION_UPDATED':
+          case 'CONNECTION.UPDATE': // Formato com ponto
+            await handleConnectionUpdate(instance, eventData);
+            break;
+
+          case 'GROUP_PARTICIPANTS_UPDATE':
+          case 'GROUP.PARTICIPANTS.UPDATE': // Formato com ponto
+            await handleGroupParticipantsUpdate(instance, eventData);
+            break;
+
+          default:
+            // Se o evento contém "messages" e "upsert", processar como mensagem
+            if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
+              await handleMessagesUpsert(instance, eventData);
+            } else if (normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('DELETE')) {
+              await handleMessagesDelete(instance, eventData);
+            } else {
+              console.log(`ℹ️ Evento não processado: ${eventType} (normalizado: ${normalizedEventType})`);
+              console.log(`📋 Estrutura do evento:`, Object.keys(eventData));
+            }
+        }
       }
     }
 
