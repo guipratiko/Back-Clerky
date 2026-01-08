@@ -126,20 +126,31 @@ export const receiveWebhook = async (
     // Normalizar tipo de evento (remover pontos, converter para maiúsculas)
     const normalizedEventType = eventType.toString().toUpperCase().replace(/\./g, '_');
 
-    // Detectar tipo de evento também pelo conteúdo
-    // Verificar se há dados de mensagem (pode estar em data ou diretamente)
-    const hasMessages = eventData.messages || eventData.data?.messages || 
-                       (eventData.data && (Array.isArray(eventData.data) || eventData.data.remoteJid || eventData.data.conversation));
-    
-    if (hasMessages || normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
-      await handleMessagesUpsert(instance, eventData);
-    } else if (eventData.keys || eventData.data?.keys) {
-      await handleMessagesDelete(instance, eventData);
-    } else if (eventData.qrcode || eventData.data?.qrcode || eventData.base64) {
-      await handleQrcodeUpdated(instance, eventData);
-    } else if (eventData.state || eventData.connectionState || eventData.status || eventData.data?.state) {
-      await handleConnectionUpdate(instance, eventData);
+    // Verificar primeiro eventos específicos que podem ter estrutura similar a outros eventos
+    // GROUP_PARTICIPANTS_UPDATE pode ter estrutura similar a mensagens, então verificar primeiro
+    if (normalizedEventType === 'GROUP_PARTICIPANTS_UPDATE' || 
+        normalizedEventType === 'GROUP.PARTICIPANTS.UPDATE' ||
+        normalizedEventType.includes('GROUP') && normalizedEventType.includes('PARTICIPANTS') ||
+        eventData.action === 'group-participants.update' ||
+        eventData.event === 'group-participants.update' ||
+        (eventData.data && (eventData.data.action === 'group-participants.update' || eventData.data.event === 'group-participants.update'))) {
+      console.log(`👥 Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
+      await handleGroupParticipantsUpdate(instance, eventData);
     } else {
+      // Detectar tipo de evento também pelo conteúdo
+      // Verificar se há dados de mensagem (pode estar em data ou diretamente)
+      const hasMessages = eventData.messages || eventData.data?.messages || 
+                         (eventData.data && (Array.isArray(eventData.data) || eventData.data.remoteJid || eventData.data.conversation));
+      
+      if (hasMessages || normalizedEventType.includes('MESSAGE') && normalizedEventType.includes('UPSERT')) {
+        await handleMessagesUpsert(instance, eventData);
+      } else if (eventData.keys || eventData.data?.keys) {
+        await handleMessagesDelete(instance, eventData);
+      } else if (eventData.qrcode || eventData.data?.qrcode || eventData.base64) {
+        await handleQrcodeUpdated(instance, eventData);
+      } else if (eventData.state || eventData.connectionState || eventData.status || eventData.data?.state) {
+        await handleConnectionUpdate(instance, eventData);
+      } else {
       // Tentar processar pelo tipo de evento normalizado
       switch (normalizedEventType) {
         case 'MESSAGES_UPSERT':
@@ -660,11 +671,14 @@ async function handleQrcodeUpdated(instance: any, eventData: any): Promise<void>
  */
 async function handleGroupParticipantsUpdate(instance: any, eventData: any): Promise<void> {
   console.log('👥 Atualização de participantes do grupo');
+  console.log(`📋 Dados do evento:`, JSON.stringify(eventData, null, 2));
   
   try {
     // Encaminhar webhook para o microserviço Grupo-Clerky
     const GROUP_SERVICE_URL = process.env.GROUP_SERVICE_URL || 'http://localhost:4334';
     const webhookUrl = `${GROUP_SERVICE_URL}/api/webhook/group-participants/${instance.instanceName}`;
+    
+    console.log(`📤 Encaminhando webhook para: ${webhookUrl}`);
     
     await axios.post(webhookUrl, eventData, {
       headers: {
@@ -675,7 +689,15 @@ async function handleGroupParticipantsUpdate(instance: any, eventData: any): Pro
     
     console.log(`✅ Webhook de movimentação encaminhado para Grupo-Clerky`);
   } catch (error) {
-    console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error.message);
+      if (error.response) {
+        console.error(`   Status: ${error.response.status}`);
+        console.error(`   Data:`, error.response.data);
+      }
+    } else {
+      console.error('❌ Erro ao encaminhar webhook para Grupo-Clerky:', error);
+    }
     // Não lançar erro para não interromper o fluxo principal
   }
 }
