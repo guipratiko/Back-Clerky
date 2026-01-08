@@ -161,7 +161,7 @@ export const upsertGroupAutoMessage = async (
       return next(createValidationError('Usuário não autenticado'));
     }
 
-    const { instanceId, groupId, messageType, messageText, isActive } = req.body;
+    const { instanceId, groupId, messageType, messageText, isActive, delaySeconds } = req.body;
 
     if (!instanceId) {
       return next(createValidationError('ID da instância é obrigatório'));
@@ -175,6 +175,12 @@ export const upsertGroupAutoMessage = async (
       return next(createValidationError('Texto da mensagem é obrigatório'));
     }
 
+    // Validar delay (deve ser número não negativo)
+    const delay = delaySeconds !== undefined ? parseInt(String(delaySeconds), 10) : 0;
+    if (isNaN(delay) || delay < 0) {
+      return next(createValidationError('Delay deve ser um número não negativo'));
+    }
+
     const autoMessage = await GroupAutoMessageService.upsertAutoMessage({
       userId,
       instanceId,
@@ -182,6 +188,7 @@ export const upsertGroupAutoMessage = async (
       messageType,
       messageText: messageText.trim(),
       isActive: isActive !== undefined ? isActive : true,
+      delaySeconds: delay,
     });
 
     res.status(200).json({
@@ -245,7 +252,7 @@ export const updateGroupAutoMessage = async (
     }
 
     const { id } = req.params;
-    const { messageText, isActive } = req.body;
+    const { messageText, isActive, delaySeconds } = req.body;
 
     if (!id) {
       return next(createValidationError('ID da mensagem automática é obrigatório'));
@@ -261,6 +268,14 @@ export const updateGroupAutoMessage = async (
 
     if (isActive !== undefined) {
       updates.isActive = isActive;
+    }
+
+    if (delaySeconds !== undefined) {
+      const delay = parseInt(String(delaySeconds), 10);
+      if (isNaN(delay) || delay < 0) {
+        return next(createValidationError('Delay deve ser um número não negativo'));
+      }
+      updates.delaySeconds = delay;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -314,5 +329,38 @@ export const deleteGroupAutoMessage = async (
       return next(createNotFoundError('Mensagem automática'));
     }
     return next(handleControllerError(error, 'Erro ao deletar mensagem automática'));
+  }
+};
+
+/**
+ * Substituir mensagens automáticas de grupos específicos pelas mensagens globais
+ * POST /api/groups/auto-messages/replace-groups
+ */
+export const replaceGroupAutoMessages = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return next(createValidationError('Usuário não autenticado'));
+    }
+
+    const { instanceId } = req.body;
+
+    if (!instanceId) {
+      return next(createValidationError('ID da instância é obrigatório'));
+    }
+
+    const result = await GroupAutoMessageService.replaceGroupAutoMessages(userId, instanceId);
+
+    res.status(200).json({
+      status: 'success',
+      message: `${result.replaced} mensagem(ns) automática(s) substituída(s) com sucesso`,
+      data: result,
+    });
+  } catch (error: unknown) {
+    return next(handleControllerError(error, 'Erro ao substituir mensagens automáticas'));
   }
 };

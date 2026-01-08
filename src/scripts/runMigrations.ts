@@ -91,6 +91,7 @@ async function runAllMigrations(): Promise<void> {
       '013_add_transcribe_audio_to_ai_agents.sql',
       '014_add_agent_type_to_ai_agents.sql',
       '015_create_group_movements_and_auto_messages.sql',
+      '016_add_delay_to_group_auto_messages.sql',
 ];
     
     for (const migration of migrations) {

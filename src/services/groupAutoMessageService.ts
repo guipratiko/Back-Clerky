@@ -5,6 +5,7 @@
 
 import { pgPool } from '../config/databases';
 import { sendMessage } from '../utils/evolutionAPI';
+import { normalizePhone } from '../utils/numberNormalizer';
 
 export interface GroupAutoMessage {
   id: string;
@@ -14,6 +15,7 @@ export interface GroupAutoMessage {
   isActive: boolean;
   messageType: 'welcome' | 'goodbye';
   messageText: string;
+  delaySeconds: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,11 +27,13 @@ export interface CreateGroupAutoMessageData {
   messageType: 'welcome' | 'goodbye';
   messageText: string;
   isActive?: boolean;
+  delaySeconds?: number;
 }
 
 export interface UpdateGroupAutoMessageData {
   messageText?: string;
   isActive?: boolean;
+  delaySeconds?: number;
 }
 
 export class GroupAutoMessageService {
@@ -52,14 +56,15 @@ export class GroupAutoMessageService {
       return this.updateAutoMessage(existing.id, data.userId, {
         messageText: data.messageText,
         isActive: data.isActive !== undefined ? data.isActive : true,
+        delaySeconds: data.delaySeconds !== undefined ? data.delaySeconds : 0,
       });
     }
 
     // Criar novo
     const query = `
       INSERT INTO group_auto_messages (
-        user_id, instance_id, group_id, message_type, message_text, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        user_id, instance_id, group_id, message_type, message_text, is_active, delay_seconds
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
@@ -71,6 +76,7 @@ export class GroupAutoMessageService {
         data.messageType,
         data.messageText,
         data.isActive !== undefined ? data.isActive : true,
+        data.delaySeconds !== undefined ? data.delaySeconds : 0,
       ]);
 
       return this.mapRowToAutoMessage(result.rows[0]);
@@ -174,7 +180,7 @@ export class GroupAutoMessageService {
       WHERE user_id = $1 
         AND instance_id = $2 
         AND group_id IS NULL
-        AND message_type = $4
+        AND message_type = $3
         AND is_active = TRUE
     `;
 
@@ -208,6 +214,12 @@ export class GroupAutoMessageService {
     if (data.isActive !== undefined) {
       updates.push(`is_active = $${paramIndex}`);
       values.push(data.isActive);
+      paramIndex++;
+    }
+
+    if (data.delaySeconds !== undefined) {
+      updates.push(`delay_seconds = $${paramIndex}`);
+      values.push(data.delaySeconds);
       paramIndex++;
     }
 
@@ -260,28 +272,42 @@ export class GroupAutoMessageService {
     participantName?: string | null,
     groupName?: string | null
   ): Promise<void> {
+    // Declarar phoneForSending no escopo da função para estar disponível no catch
+    let phoneForSending: string = participantPhone.replace(/\D/g, '');
+    
     try {
+      // Aplicar delay se configurado
+      if (message.delaySeconds > 0) {
+        console.log(`⏳ Aguardando ${message.delaySeconds} segundo(s) antes de enviar mensagem automática...`);
+        await new Promise((resolve) => setTimeout(resolve, message.delaySeconds * 1000));
+      }
+
+      // Extrair primeiro nome (primeira palavra do nome)
+      const firstName = participantName
+        ? participantName.trim().split(/\s+/)[0]
+        : participantPhone;
+
       // Substituir variáveis no texto da mensagem
       let processedText = message.messageText;
       
       processedText = processedText.replace(/{name}/g, participantName || participantPhone);
+      processedText = processedText.replace(/{firstName}/g, firstName);
       processedText = processedText.replace(/{phone}/g, participantPhone);
       processedText = processedText.replace(/{group}/g, groupName || 'o grupo');
 
-      // Para envio via Evolution API, usar o número completo com código do país
-      // O participantPhone já vem sem @s.whatsapp.net, mas pode precisar do código do país
-      let phoneForSending = participantPhone;
+      // Normalizar número de telefone para envio via Evolution API
+      // O participantPhone já vem sem @s.whatsapp.net do webhook
+      const normalizedPhone = normalizePhone(participantPhone, '55');
       
-      // Remover caracteres não numéricos
-      phoneForSending = phoneForSending.replace(/\D/g, '');
-      
-      // Se o número não começar com 55 (código do Brasil), adicionar
-      if (!phoneForSending.startsWith('55')) {
-        // Se tiver 10 ou 11 dígitos (DDD + número), adicionar 55
-        if (phoneForSending.length === 10 || phoneForSending.length === 11) {
-          phoneForSending = `55${phoneForSending}`;
-        }
+      // Se conseguiu normalizar, usar o número normalizado
+      if (normalizedPhone) {
+        phoneForSending = normalizedPhone;
+      } else {
+        // Se não conseguiu normalizar, usar o número original limpo (pode ser de outro país)
+        phoneForSending = participantPhone.replace(/\D/g, '');
+        console.warn(`⚠️ Não foi possível normalizar o número ${participantPhone}, usando como está: ${phoneForSending}`);
       }
+      
 
       // Enviar mensagem individual (não no grupo)
       await sendMessage(instanceName, {
@@ -289,11 +315,84 @@ export class GroupAutoMessageService {
         text: processedText,
       });
 
-      console.log(`✅ Mensagem automática ${message.messageType} enviada para ${participantPhone}`);
-    } catch (error) {
-      console.error(`❌ Erro ao enviar mensagem automática ${message.messageType}:`, error);
+      console.log(`✅ Mensagem automática ${message.messageType} enviada para ${participantPhone} (${phoneForSending})`);
+    } catch (error: any) {
+      // Verificar se o erro é porque o número não existe no WhatsApp
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes('exists') && errorMessage.includes('false')) {
+        console.warn(`⚠️ Número ${participantPhone} (${phoneForSending}) não existe no WhatsApp. Mensagem automática não enviada.`);
+      } else {
+        console.error(`❌ Erro ao enviar mensagem automática ${message.messageType} para ${participantPhone} (${phoneForSending}):`, errorMessage);
+      }
       // Não lançar erro para não bloquear o processamento do webhook
     }
+  }
+
+  /**
+   * Substituir mensagens automáticas de grupos específicos pelas mensagens globais
+   */
+  static async replaceGroupAutoMessages(
+    userId: string,
+    instanceId: string
+  ): Promise<{ replaced: number }> {
+    // Buscar mensagens globais (groupId IS NULL)
+    const globalMessages = await this.getAutoMessagesByInstance(userId, instanceId);
+    const globalWelcome = globalMessages.find((msg) => msg.messageType === 'welcome' && msg.groupId === null);
+    const globalGoodbye = globalMessages.find((msg) => msg.messageType === 'goodbye' && msg.groupId === null);
+
+    let replacedCount = 0;
+
+    // Se existe mensagem global de boas-vindas, substituir todas as de grupos específicos
+    if (globalWelcome) {
+      const updateQuery = `
+        UPDATE group_auto_messages
+        SET message_text = $1,
+            is_active = $2,
+            delay_seconds = $3,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $4
+          AND instance_id = $5
+          AND message_type = 'welcome'
+          AND group_id IS NOT NULL
+      `;
+      
+      const result = await pgPool.query(updateQuery, [
+        globalWelcome.messageText,
+        globalWelcome.isActive,
+        globalWelcome.delaySeconds,
+        userId,
+        instanceId,
+      ]);
+      
+      replacedCount += result.rowCount || 0;
+    }
+
+    // Se existe mensagem global de despedida, substituir todas as de grupos específicos
+    if (globalGoodbye) {
+      const updateQuery = `
+        UPDATE group_auto_messages
+        SET message_text = $1,
+            is_active = $2,
+            delay_seconds = $3,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $4
+          AND instance_id = $5
+          AND message_type = 'goodbye'
+          AND group_id IS NOT NULL
+      `;
+      
+      const result = await pgPool.query(updateQuery, [
+        globalGoodbye.messageText,
+        globalGoodbye.isActive,
+        globalGoodbye.delaySeconds,
+        userId,
+        instanceId,
+      ]);
+      
+      replacedCount += result.rowCount || 0;
+    }
+
+    return { replaced: replacedCount };
   }
 
   /**
@@ -308,6 +407,7 @@ export class GroupAutoMessageService {
       isActive: row.is_active,
       messageType: row.message_type,
       messageText: row.message_text,
+      delaySeconds: row.delay_seconds || 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

@@ -7,6 +7,7 @@ import {
   getGroupAutoMessages,
   updateGroupAutoMessage,
   deleteGroupAutoMessage,
+  replaceGroupAutoMessages,
 } from '../controllers/groupMovementController';
 
 const router = Router();
@@ -23,5 +24,6 @@ router.post('/auto-messages', upsertGroupAutoMessage);
 router.get('/auto-messages', getGroupAutoMessages);
 router.put('/auto-messages/:id', updateGroupAutoMessage);
 router.delete('/auto-messages/:id', deleteGroupAutoMessage);
+router.post('/auto-messages/replace-groups', replaceGroupAutoMessages);
 
 export default router;

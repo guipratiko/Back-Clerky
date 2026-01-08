@@ -17,6 +17,7 @@ import {
 } from '../services/aiAgentProcessor';
 import { GroupMovementService } from '../services/groupMovementService';
 import { GroupAutoMessageService } from '../services/groupAutoMessageService';
+import { extractPhoneFromJid } from '../utils/numberNormalizer';
 
 /**
  * Extrai e exibe informações relevantes do payload de forma limpa
@@ -211,6 +212,15 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
   
   console.log(`📨 Total de mensagens: ${messages.length}`);
   
+  // Verificar se alguma mensagem é de grupo (@g.us) - se sim, ignorar completamente
+  for (const msg of messages) {
+    const extracted = extractMessageData(msg);
+    if (extracted.remoteJid && extracted.remoteJid.endsWith('@g.us')) {
+      console.log(`⏭️  Mensagem de grupo ignorada: ${extracted.remoteJid}`);
+      return; // Ignorar completamente - não processar nada
+    }
+  }
+  
   if (!instance.userId) {
     return;
   }
@@ -251,6 +261,12 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
       if (!extracted.remoteJid) {
         console.warn('⚠️ RemoteJid não encontrado na mensagem');
         continue;
+      }
+
+      // Ignorar completamente mensagens de grupos (@g.us)
+      if (extracted.remoteJid.endsWith('@g.us')) {
+        console.log(`⏭️  Mensagem de grupo ignorada: ${extracted.remoteJid}`);
+        continue; // Ignorar esta mensagem e passar para a próxima
       }
 
       // Ignorar mensagens enviadas por nós (fromMe === true) para evitar criar contatos próprios
@@ -340,8 +356,8 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
       let profilePictureUrl: string | null = null;
       if (isNewContact || !contact?.profilePicture) {
         try {
-          // Extrair número do remoteJid (remover @s.whatsapp.net)
-          const number = extracted.remoteJid?.replace(/@.*$/, '') || '';
+          // Extrair número do remoteJid
+          const number = extracted.remoteJid ? extractPhoneFromJid(extracted.remoteJid) : '';
           profilePictureUrl = await fetchProfilePictureUrl(instance.instanceName, number);
           if (profilePictureUrl) {
             console.log(`📸 Foto de perfil encontrada para ${pushName}: ${profilePictureUrl}`);
@@ -495,7 +511,7 @@ async function handleMessagesUpsert(instance: any, eventData: any): Promise<void
             const agent = await AIAgentService.getActiveByInstance(instance._id.toString());
             if (agent) {
               console.log(`✅ Agente de IA encontrado: ${agent.name} (ativo: ${agent.isActive})`);
-              const fullPhone = extracted.remoteJid?.replace(/@.*$/, '') || phone;
+              const fullPhone = extracted.remoteJid ? extractPhoneFromJid(extracted.remoteJid) : phone;
               const messageId = extracted.messageId || `msg_${Date.now()}_${Math.random()}`;
               const messageType = extracted.messageType || 'conversation';
               const base64 = messageType === 'audioMessage' ? extracted.base64 : undefined;
@@ -755,10 +771,51 @@ async function handleGroupParticipantsUpdate(instance: any, eventData: any): Pro
   // Processar cada participante afetado
   for (const participant of participants) {
     try {
-      const participantJid = participant.id || participant.jid || participant || '';
-      const participantPhone = participantJid.replace(/@.*$/, '') || '';
-      const participantName = participant.name || participant.pushName || participant.notify || null;
-      const isAdmin = participant.isAdmin !== undefined ? participant.isAdmin : (action === 'promote');
+      // Tentar extrair o número de telefone de vários campos possíveis
+      let participantJid = '';
+      let participantPhone = '';
+      
+      // Se participant é uma string (JID direto)
+      if (typeof participant === 'string') {
+        participantJid = participant;
+        participantPhone = extractPhoneFromJid(participant);
+      } else if (typeof participant === 'object' && participant !== null) {
+        // PRIORIDADE 1: Campos específicos de telefone (phoneNumber, phone, number)
+        participantPhone = participant.phoneNumber || participant.phone || participant.number || '';
+        
+        // PRIORIDADE 2: Extrair do JID (id, jid, remoteJid)
+        participantJid = participant.id || participant.jid || participant.remoteJid || '';
+        
+        // Se encontrou JID mas não telefone, extrair telefone do JID
+        if (participantJid && !participantPhone) {
+          participantPhone = extractPhoneFromJid(participantJid);
+        }
+        
+        // Se encontrou telefone mas não JID, construir JID
+        if (participantPhone && !participantJid) {
+          participantJid = `${participantPhone}@s.whatsapp.net`;
+        }
+        
+        // Fallback: se ainda não tem nada, tentar usar o objeto como string
+        if (!participantJid && !participantPhone) {
+          participantJid = String(participant);
+          participantPhone = extractPhoneFromJid(participantJid);
+        }
+      } else {
+        // Fallback para outros tipos
+        participantJid = String(participant || '');
+        participantPhone = extractPhoneFromJid(participantJid);
+      }
+      
+      // Limpar o número (remover caracteres não numéricos)
+      const cleanedPhone = participantPhone.replace(/\D/g, '');
+      
+      // Se o número limpo está vazio ou muito curto, manter o original
+      participantPhone = cleanedPhone.length >= 10 ? cleanedPhone : participantPhone;
+      
+      const participantName = participant?.name || participant?.pushName || participant?.notify || participant?.displayName || null;
+      const isAdmin = participant?.isAdmin !== undefined ? participant.isAdmin : (action === 'promote');
+      
 
       // Determinar tipo de movimentação
       let movementType: 'join' | 'leave' | 'promote' | 'demote' = 'join';
@@ -778,7 +835,7 @@ async function handleGroupParticipantsUpdate(instance: any, eventData: any): Pro
       let actionByName: string | null = null;
       
       if (actionByJid) {
-        actionByPhone = actionByJid.replace(/@.*$/, '') || null;
+        actionByPhone = extractPhoneFromJid(actionByJid) || null;
         if (actionBy && typeof actionBy === 'object') {
           actionByName = actionBy.name || actionBy.pushName || actionBy.notify || null;
         }
