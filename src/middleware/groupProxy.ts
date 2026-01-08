@@ -51,20 +51,25 @@ async function proxyRequest(
 ): Promise<void> {
   try {
     // Construir URL do microserviço
-    // req.baseUrl contém o prefixo da rota (ex: '/auto-messages')
-    // req.path contém o resto do path após o prefixo
-    const baseUrl = req.baseUrl || ''; // Pode ser '/groups', '/movements', '/auto-messages'
-    const pathAfterPrefix = req.path || '/';
+    // Usar originalUrl para pegar o path completo antes do Express remover o prefixo
+    let path = req.originalUrl.split('?')[0]; // Remove query params
     
-    // Reconstruir o path completo
-    let fullPath = baseUrl + pathAfterPrefix;
-    
-    // Se o path não começa com /groups, /movements ou /auto-messages, assumir que é /groups
-    if (!fullPath.startsWith('/groups') && !fullPath.startsWith('/movements') && !fullPath.startsWith('/auto-messages')) {
-      fullPath = `/groups${fullPath}`;
+    // Se o path começa com /api, remover o prefixo
+    if (path.startsWith('/api')) {
+      path = path.substring(4); // Remove '/api'
     }
     
-    const targetUrl = `${GROUP_SERVICE_URL}/api${fullPath}`;
+    // Garantir que o path começa com /
+    if (!path.startsWith('/')) {
+      path = '/' + path;
+    }
+    
+    // Se o path não começa com /groups, /movements ou /auto-messages, assumir que é /groups
+    if (!path.startsWith('/groups') && !path.startsWith('/movements') && !path.startsWith('/auto-messages')) {
+      path = `/groups${path}`;
+    }
+    
+    const targetUrl = `${GROUP_SERVICE_URL}/api${path}`;
     
     // Preparar headers
     const headers: Record<string, string> = {};
