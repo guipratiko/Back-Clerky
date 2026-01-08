@@ -126,15 +126,45 @@ export const receiveWebhook = async (
     // Normalizar tipo de evento (remover pontos, converter para maiúsculas)
     const normalizedEventType = eventType.toString().toUpperCase().replace(/\./g, '_');
 
+    // Log detalhado para debug
+    console.log(`🔍 [Webhook] EventType detectado: ${eventType}`);
+    console.log(`🔍 [Webhook] Normalized: ${normalizedEventType}`);
+    console.log(`🔍 [Webhook] eventData.event: ${eventData.event}`);
+    console.log(`🔍 [Webhook] eventData.type: ${eventData.type}`);
+    console.log(`🔍 [Webhook] eventData.action: ${eventData.action}`);
+    console.log(`🔍 [Webhook] eventData.data?.event: ${eventData.data?.event}`);
+    console.log(`🔍 [Webhook] eventData.data?.type: ${eventData.data?.type}`);
+    console.log(`🔍 [Webhook] eventData.data?.action: ${eventData.data?.action}`);
+    
+    // Verificar se é evento de grupo (pode estar em diferentes campos)
+    // Na Evolution API, o evento group-participants.update pode ter estrutura:
+    // { event: 'group-participants.update', id: 'groupId', participants: [...], action: 'add'|'remove' }
+    const isGroupParticipantsEvent = 
+      normalizedEventType === 'GROUP_PARTICIPANTS_UPDATE' || 
+      normalizedEventType === 'GROUP.PARTICIPANTS.UPDATE' ||
+      (normalizedEventType.includes('GROUP') && normalizedEventType.includes('PARTICIPANTS')) ||
+      eventData.action === 'group-participants.update' ||
+      eventData.event === 'group-participants.update' ||
+      eventData.type === 'group-participants.update' ||
+      (eventData.data && (
+        eventData.data.action === 'group-participants.update' || 
+        eventData.data.event === 'group-participants.update' ||
+        eventData.data.type === 'group-participants.update'
+      )) ||
+      // Verificar também por estrutura de dados (participants, action: add/remove)
+      // O evento pode ter participants array e action (add/remove) mesmo que o event seja diferente
+      ((eventData.participants && Array.isArray(eventData.participants)) && 
+       (eventData.action === 'add' || eventData.action === 'remove')) ||
+      ((eventData.data?.participants && Array.isArray(eventData.data.participants)) && 
+       (eventData.data.action === 'add' || eventData.data.action === 'remove')) ||
+      // Verificar se tem id de grupo e participants (estrutura típica do evento)
+      (eventData.id && eventData.id.includes('@g.us') && 
+       (eventData.participants || eventData.data?.participants));
+
     // Verificar primeiro eventos específicos que podem ter estrutura similar a outros eventos
     // GROUP_PARTICIPANTS_UPDATE pode ter estrutura similar a mensagens, então verificar primeiro
-    if (normalizedEventType === 'GROUP_PARTICIPANTS_UPDATE' || 
-        normalizedEventType === 'GROUP.PARTICIPANTS.UPDATE' ||
-        normalizedEventType.includes('GROUP') && normalizedEventType.includes('PARTICIPANTS') ||
-        eventData.action === 'group-participants.update' ||
-        eventData.event === 'group-participants.update' ||
-        (eventData.data && (eventData.data.action === 'group-participants.update' || eventData.data.event === 'group-participants.update'))) {
-      console.log(`👥 Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
+    if (isGroupParticipantsEvent) {
+      console.log(`👥 [Webhook] Detectado evento GROUP_PARTICIPANTS_UPDATE: ${eventType} (normalizado: ${normalizedEventType})`);
       await handleGroupParticipantsUpdate(instance, eventData);
     } else {
       // Detectar tipo de evento também pelo conteúdo
